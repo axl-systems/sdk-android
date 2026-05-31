@@ -27,11 +27,8 @@ Initial public release of axl SDK.
 - `checkoutCompleted(transactionNo, epcs)` — complete a POS checkout transaction
 - `sendDeviceConfig(RfidDeviceConfig)` — push configuration in AE03A001 lean format (`config` command)
 - `updateDeviceConfig(RfidDeviceConfig)` — push configuration in full format (`update_config` command)
-- `getReadingStatus()` — query reader active/inactive state
-- `getHealthInfo()` — request device CPU, memory, temperature diagnostics
 - `onTagDetected(epc, antenna)` — fires per EPC during active scanning
 - `onReadingPaused()`, `onReadingStopped()`, `onCheckoutConfirmed()`, `onConfigUpdated()` callbacks
-- `onHealthInfoReceived(JSONObject)`, `onReaderStatusReceived(boolean)` callbacks
 
 **Barcode**
 - `startBarcodeReading()` / `stopBarcodeReading()`
@@ -60,7 +57,7 @@ Initial public release of axl SDK.
 - `onDeviceLogReceived(level, message, timestamp)` — real-time firmware log stream
 
 **Supported Devices**
-- AXL FLAT (AE03A001) — `DeviceInfo.DEVICE_TYPE_AXL_FLAT`
+- AXL FLAT — `DeviceInfo.DEVICE_TYPE_AXL_FLAT`
 - AXL BIN — `DeviceInfo.DEVICE_TYPE_AXL_BIN`
 - AXL GATE — `DeviceInfo.DEVICE_TYPE_AXL_GATE`
 
