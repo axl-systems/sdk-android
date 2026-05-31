@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <usb-device
+        vendor-id="1155"
+        product-id="22336" />
+    <!-- 1155 = 0x0483 (STMicroelectronics), 22336 = 0x5740 (STM32 CDC) -->
+</resources>

@@ -1,0 +1,43 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.axlsystem.axlsdk.sample'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.axlsystem.axlsdk.sample'
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+dependencies {
+    // ── Option A (default): reference the SDK module directly during development
+    implementation project(':axlsdk')
+
+    // ── Option B: use the built AAR file (after running ./gradlew :axlsdk:assembleRelease)
+    // implementation files('../axlsdk/build/outputs/aar/axlsdk-release.aar')
+
+    // ── Option C: use the published AAR from Maven / JitPack (production)
+    // implementation 'com.axlsystem:axlsdk:26.2.1'
+
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.10.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+}
