@@ -163,7 +163,7 @@ override fun onConnected() {
 
 override fun onDeviceIdentified(deviceInfo: DeviceInfo) {
     // deviceInfo.deviceName  → e.g. "AXL FLAT"
-    // deviceInfo.deviceType  → e.g. "AE03A001"
+    // deviceInfo.deviceType  → e.g. "AXL_FLAT"
     Log.i(TAG, "Device: ${deviceInfo.deviceName} (${deviceInfo.deviceType})")
 }
 
@@ -229,7 +229,7 @@ class MainActivity : AppCompatActivity(), SdkListener {
     override fun onReaderStatusReceived(isActive: Boolean) {
         // Response to getReadingStatus()
     }
-    
+
     override fun onHealthInfoReceived(data: JSONObject) {
         val cpu   = data.optDouble("cpu_percent")
         val mem   = data.optDouble("memory_percent")
@@ -353,7 +353,7 @@ Use `RfidDeviceConfig.Builder` to build the configuration, then send it to the d
 
 | Device | Method |
 |---|---|
-| **AE03A001 (AXL FLAT)** | `sdk.sendDeviceConfig(config)` — sends a lean `config` command |
+| **AXL FLAT** (`DeviceInfo.DEVICE_TYPE_AXL_FLAT`) | `sdk.sendDeviceConfig(config)` — sends a lean `config` command |
 | **All other devices** | `sdk.updateDeviceConfig(config)` — sends the full `update_config` command |
 
 Both fire `onConfigUpdated()` on success.
@@ -378,7 +378,7 @@ val config = RfidDeviceConfig.Builder()
     .networkLan()                    // wired LAN
     .build()
 
-// AE03A001 (AXL FLAT)
+// AXL FLAT (DeviceInfo.DEVICE_TYPE_AXL_FLAT)
 sdk.sendDeviceConfig(config)
 
 // Other devices
@@ -450,7 +450,7 @@ override fun onNfcTagDetected(uid: String, antenna: Int) {
 ---
 
 ## 10. Health & Status
-<!--
+
 ```kotlin
 sdk.getHealthInfo()       // → onHealthInfoReceived(JSONObject)
 sdk.getReadingStatus()    // → onReaderStatusReceived(Boolean)
@@ -467,7 +467,6 @@ Fields in `onHealthInfoReceived`:
 | `temperature` | String | CPU temperature — may be absent on some hardware |
 
 ---
--->
 
 ## 11. Disconnecting
 
@@ -564,7 +563,7 @@ Not all settings take effect the same way. Use this table when the user saves se
 | Setting changed | How to apply |
 |---|---|
 | **Baud rate** | Call `sdk.reconfigure(newSdkConfig)` then `sdk.connect()` — cannot change on a live connection |
-| **Region, Protocol, Antennas, Read Power, Frequencies** | Call `sdk.sendDeviceConfig(config)` (AE03A001) or `sdk.updateDeviceConfig(config)` (other devices) — safe while `CONNECTED` or `PAUSED` |
+| **Region, Protocol, Antennas, Read Power, Frequencies** | Call `sdk.sendDeviceConfig(config)` (AXL FLAT) or `sdk.updateDeviceConfig(config)` (other devices) — safe while `CONNECTED` or `PAUSED` |
 | **Wi-Fi credentials / LAN toggle** | Pass via `.networkWifi()` or `.networkLan()` inside `sendDeviceConfig()` or `updateDeviceConfig()` |
 | **Debug logging** | Call `sdk.setDebugLogging(enabled)` — takes effect immediately, no reconnect needed |
 

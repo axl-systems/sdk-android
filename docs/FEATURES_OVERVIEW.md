@@ -72,7 +72,7 @@ Push hardware settings to the device at any time — no restart required. Config
 The device acknowledges config updates with `onConfigUpdated()`.
 
 Two config formats are supported:
-- **`sendDeviceConfig()`** — Lean format for AE03A001 (AXL FLAT) devices
+- **`sendDeviceConfig()`** — Lean format for AXL FLAT devices
 - **`updateDeviceConfig()`** — Full format for other AXL devices
 
 ---
@@ -126,7 +126,7 @@ All errors surface through a single `onError(message)` callback with a human-rea
 
 | Device | Use Case |
 |---|---|
-| **AXL FLAT** (AE03A001) | Flat countertop POS reader |
+| **AXL FLAT** | Flat countertop POS reader |
 | **AXL BIN** | Bin / container scanning |
 | **AXL GATE** | Portal / gate scanning |
 

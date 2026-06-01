@@ -17,7 +17,7 @@ Initial public release of axl SDK.
 - `connection_sync` / `disconnect_sync` handshake protocol
 - Auto-reconnect on unexpected USB drop (configurable)
 - `onConnected()`, `onDisconnected()` lifecycle callbacks
-- `onDeviceIdentified(DeviceInfo)` — device SKU and display name after handshake
+- `onDeviceIdentified(DeviceInfo)` — device type and display name after handshake
 - `onAntennasDetected(List<Integer>)` — hardware antenna ports reported after connect
 
 **RFID**
@@ -25,10 +25,13 @@ Initial public release of axl SDK.
 - `pauseReading()` — pause scanning, preserve collected tags
 - `stopReading(epcs)` — stop scanning and deliver EPC list to device
 - `checkoutCompleted(transactionNo, epcs)` — complete a POS checkout transaction
-- `sendDeviceConfig(RfidDeviceConfig)` — push configuration in AE03A001 lean format (`config` command)
+- `sendDeviceConfig(RfidDeviceConfig)` — push configuration in lean format (`config` command)
 - `updateDeviceConfig(RfidDeviceConfig)` — push configuration in full format (`update_config` command)
+- `getReadingStatus()` — query reader active/inactive state
+- `getHealthInfo()` — request device CPU, memory, temperature diagnostics
 - `onTagDetected(epc, antenna)` — fires per EPC during active scanning
 - `onReadingPaused()`, `onReadingStopped()`, `onCheckoutConfirmed()`, `onConfigUpdated()` callbacks
+- `onHealthInfoReceived(JSONObject)`, `onReaderStatusReceived(boolean)` callbacks
 
 **Barcode**
 - `startBarcodeReading()` / `stopBarcodeReading()`
@@ -43,7 +46,7 @@ Initial public release of axl SDK.
 - Network: LAN (`networkLan()`) or Wi-Fi (`networkWifi(ssid, security, password)`)
 - Frequency: hop time, read on/off frequency, hop frequency list
 - `toJson()` — full `update_config` payload
-- `toAe03Json()` — lean `config` payload for AE03A001 devices
+- `toAe03Json()` — lean `config` payload for AXL FLAT devices
 - `put(key, value)` escape hatch for future fields
 
 **SDK Configuration (`SdkConfig.Builder`)**

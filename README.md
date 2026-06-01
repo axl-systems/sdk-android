@@ -16,7 +16,7 @@ axl SDK provides a clean Android API to communicate with AXL RFID hardware over 
 
 - Android 8.0+ (API 26)
 - USB OTG support on the Android device
-- AXL RFID hardware (AE03A001 / AXL FLAT, AXL BIN, or AXL GATE)
+- AXL RFID hardware (AXL FLAT, AXL BIN, or AXL GATE)
 
 ---
 
@@ -193,10 +193,10 @@ sdk.disconnect();
 | `pauseReading()` | Pause scanning (collected tags preserved) |
 | `stopReading(List<String> epcs)` | Stop scanning and send EPC list to device |
 | `checkoutCompleted(txnId, epcs)` | Complete a POS checkout transaction |
-| `sendDeviceConfig(RfidDeviceConfig)` | Push device configuration (AE03A001 format) |
+| `sendDeviceConfig(RfidDeviceConfig)` | Push device configuration to device |
 | `updateDeviceConfig(RfidDeviceConfig)` | Push device configuration (full format) |
-<!-- | `getReadingStatus()` | Query whether the reader is currently active | -->
-<!-- | `getHealthInfo()` | Request device health diagnostics | -->
+| `getReadingStatus()` | Query whether the reader is currently active |
+| `getHealthInfo()` | Request device health diagnostics |
 
 ### Barcode Commands
 
@@ -238,8 +238,8 @@ All callbacks are dispatched on the **main (UI) thread**.
 | `onReadingStopped()` | Scanning stopped and EPC list delivered to device |
 | `onCheckoutConfirmed(txnId)` | Checkout transaction acknowledged by device |
 | `onConfigUpdated()` | Device config update acknowledged |
-<!-- | `onReaderStatusReceived(boolean)` | Reader active/inactive status response | -->
-<!-- | `onHealthInfoReceived(JSONObject)` | Device CPU, memory, and temperature metrics | -->
+| `onReaderStatusReceived(boolean)` | Reader active/inactive status response |
+| `onHealthInfoReceived(JSONObject)` | Device CPU, memory, and temperature metrics |
 | `onDeviceLogReceived(level, msg, ts)` | Log entry streamed from device firmware |
 
 ### Barcode
@@ -293,7 +293,7 @@ RfidDeviceConfig config = new RfidDeviceConfig.Builder()
     .hopFrequencyKhz("903250")
     .build();
 
-// AE03A001 devices
+// AXL FLAT (DeviceInfo.DEVICE_TYPE_AXL_FLAT)
 sdk.sendDeviceConfig(config);
 
 // Other devices
@@ -341,11 +341,11 @@ IDLE ─── connect() ──────────► CONNECTED
 
 ## Supported Devices
 
-| Display Name | SKU | Constant |
+| Display Name | Device Type | Constant |
 |---|---|---|
-| AXL FLAT | AE03A001 | `DeviceInfo.DEVICE_TYPE_AXL_FLAT` |
-| AXL BIN | — | `DeviceInfo.DEVICE_TYPE_AXL_BIN` |
-| AXL GATE | — | `DeviceInfo.DEVICE_TYPE_AXL_GATE` |
+| AXL FLAT | `AXL_FLAT` | `DeviceInfo.DEVICE_TYPE_AXL_FLAT` |
+| AXL BIN | `AXL_BIN` | `DeviceInfo.DEVICE_TYPE_AXL_BIN` |
+| AXL GATE | `AXL_GATE` | `DeviceInfo.DEVICE_TYPE_AXL_GATE` |
 
 ---
 
@@ -391,5 +391,5 @@ if (SdkVersion.CODE >= 260201) {
 
 ## License
 
-Copyright 2026 axl Systems.  
+Copyright 2024 AXL System.  
 Licensed under the [Apache License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0.txt).
