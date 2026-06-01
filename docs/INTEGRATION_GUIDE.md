@@ -50,14 +50,6 @@ dependencies {
 
 > When a new SDK version is released, replace `axlsdk.aar` in `app/libs/` and rebuild.
 
-**Option B — Maven / JitPack**
-
-```groovy
-dependencies {
-    implementation 'com.axlsystem:axlsdk:26.2.1'
-}
-```
-
 ---
 
 ### 1.2 USB Permission

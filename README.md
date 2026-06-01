@@ -16,28 +16,23 @@ axl SDK provides a clean Android API to communicate with AXL RFID hardware over 
 
 - Android 8.0+ (API 26)
 - USB OTG support on the Android device
-- AXL RFID hardware (AXL FLAT, AXL BIN, or AXL GATE)
+- AXL RFID hardware (AE03A001 / AXL FLAT, AXL BIN, or AXL GATE)
 
 ---
 
 ## Installation
 
-### Option A — Download AAR directly
+### Option A — Local AAR
 
-1. Download `axlsdk.aar` from the [latest release](https://github.com/axl-systems/sdk-android/releases/latest)
-    or clone this repo and copy `libs/axlsdk.aar` into your project.
+1. Copy `axlsdk.aar` into `app/libs/`.
+2. In `app/build.gradle`:
 
-2. Place it in your app:
-    your-pos-app/
-    └── app/
-        └── libs/
-            └── axlsdk.aar
-
-3. In app/build.gradle:
-    dependencies {
-        implementation fileTree(dir: 'libs', include: ['*.aar'])
-        implementation 'com.github.mik3y:usb-serial-for-android:3.8.1'
-    }
+```groovy
+dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.aar'])
+    implementation 'com.github.mik3y:usb-serial-for-android:3.8.1'
+}
+```
 
 ### Option B — Module reference (monorepo)
 
@@ -48,14 +43,6 @@ include ':axlsdk'
 // app/build.gradle
 dependencies {
     implementation project(':axlsdk')
-}
-```
-
-### Option C — Maven / JitPack
-
-```groovy
-dependencies {
-    implementation 'com.axlsystem:axlsdk:26.2.1'
 }
 ```
 
@@ -388,5 +375,5 @@ if (SdkVersion.CODE >= 260201) {
 
 ## License
 
-Copyright 2026 AXL System.  
+Copyright 2024 AXL System.  
 Licensed under the [Apache License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0.txt).
