@@ -349,22 +349,6 @@ IDLE ─── connect() ──────────► CONNECTED
 
 ---
 
-## Build from Source
-
-```bash
-cd RFIDSDK
-./gradlew clean :axlsdk:assembleRelease
-# Output: axlsdk/build/outputs/aar/axlsdk-release.aar
-```
-
-Copy to consuming app:
-
-```bash
-cp axlsdk/build/outputs/aar/axlsdk-release.aar ../andriod/app/libs/axlsdk.aar
-```
-
----
-
 ## Repository Structure
 
 ```
