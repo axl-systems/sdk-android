@@ -57,8 +57,7 @@ dependencies {
 Add to `AndroidManifest.xml`:
 
 ```xml
-<uses-feature android:name="android.hardware.usb.host" />
-<uses-permission android:name="android.permission.USB_PERMISSION" />
+<uses-feature android:name="android.hardware.usb.host" android:required="false" />
 
 <activity android:name=".MainActivity">
     <intent-filter>
@@ -75,12 +74,28 @@ Create `res/xml/device_filter.xml`:
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <usb-device vendor-id="1155" product-id="22336" />
+    <!-- FTDI FT232R  VID=0x0403  PID=0x6001 -->
+    <usb-device vendor-id="1027"  product-id="24577" />
+    <!-- FTDI FT2232H VID=0x0403  PID=0x6010 -->
+    <usb-device vendor-id="1027"  product-id="24592" />
+    <!-- FTDI FT4232H VID=0x0403  PID=0x6011 -->
+    <usb-device vendor-id="1027"  product-id="24593" />
+    <!-- STM32 USB CDC VID=0x0483  PID=0x5740 -->
+    <usb-device vendor-id="1155"  product-id="22336" />
+    <!-- STM32 USB CDC VID=0x0483  PID=0x5741 (alt PID) -->
+    <usb-device vendor-id="1155"  product-id="22337" />
+    <!-- Silicon Labs CP210x VID=0x10C4  PID=0xEA60 -->
+    <usb-device vendor-id="4292"  product-id="60000" />
+    <!-- Prolific PL2303 VID=0x067B  PID=0x2303 -->
+    <usb-device vendor-id="1659"  product-id="8963"  />
+    <!-- CH340 / CH341  VID=0x1A86  PID=0x7523 -->
+    <usb-device vendor-id="6790"  product-id="29987" />
+    <!-- CH9102 (CH343) VID=0x1A86  PID=0x55D4 -->
+    <usb-device vendor-id="6790"  product-id="21972" />
 </resources>
 ```
 
-> `vendor-id="1155"` = `0x0483` (STMicroelectronics), `product-id="22336"` = `0x5740` (STM32 CDC).
-> Update these values if your hardware uses different IDs.
+> The SDK uses the `usb-serial-for-android` library which supports all the above chip families. Android uses this file to auto-launch the app and prompt for USB permission when a matching device is plugged in — no runtime permission declaration is needed in the manifest.
 
 ---
 
