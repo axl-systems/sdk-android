@@ -195,8 +195,8 @@ sdk.disconnect();
 | `checkoutCompleted(txnId, epcs)` | Complete a POS checkout transaction |
 | `sendDeviceConfig(RfidDeviceConfig)` | Push device configuration (AE03A001 format) |
 | `updateDeviceConfig(RfidDeviceConfig)` | Push device configuration (full format) |
-| `getReadingStatus()` | Query whether the reader is currently active |
-| `getHealthInfo()` | Request device health diagnostics |
+<!-- | `getReadingStatus()` | Query whether the reader is currently active | -->
+<!-- | `getHealthInfo()` | Request device health diagnostics | -->
 
 ### Barcode Commands
 
@@ -238,8 +238,8 @@ All callbacks are dispatched on the **main (UI) thread**.
 | `onReadingStopped()` | Scanning stopped and EPC list delivered to device |
 | `onCheckoutConfirmed(txnId)` | Checkout transaction acknowledged by device |
 | `onConfigUpdated()` | Device config update acknowledged |
-| `onReaderStatusReceived(boolean)` | Reader active/inactive status response |
-| `onHealthInfoReceived(JSONObject)` | Device CPU, memory, and temperature metrics |
+<!-- | `onReaderStatusReceived(boolean)` | Reader active/inactive status response | -->
+<!-- | `onHealthInfoReceived(JSONObject)` | Device CPU, memory, and temperature metrics | -->
 | `onDeviceLogReceived(level, msg, ts)` | Log entry streamed from device firmware |
 
 ### Barcode
@@ -391,5 +391,5 @@ if (SdkVersion.CODE >= 260201) {
 
 ## License
 
-Copyright 2024 AXL System.  
+Copyright 2026 axl Systems.  
 Licensed under the [Apache License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0.txt).

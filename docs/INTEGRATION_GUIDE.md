@@ -229,7 +229,7 @@ class MainActivity : AppCompatActivity(), SdkListener {
     override fun onReaderStatusReceived(isActive: Boolean) {
         // Response to getReadingStatus()
     }
-
+    
     override fun onHealthInfoReceived(data: JSONObject) {
         val cpu   = data.optDouble("cpu_percent")
         val mem   = data.optDouble("memory_percent")
@@ -450,7 +450,7 @@ override fun onNfcTagDetected(uid: String, antenna: Int) {
 ---
 
 ## 10. Health & Status
-
+<!--
 ```kotlin
 sdk.getHealthInfo()       // → onHealthInfoReceived(JSONObject)
 sdk.getReadingStatus()    // → onReaderStatusReceived(Boolean)
@@ -467,6 +467,7 @@ Fields in `onHealthInfoReceived`:
 | `temperature` | String | CPU temperature — may be absent on some hardware |
 
 ---
+-->
 
 ## 11. Disconnecting
 
