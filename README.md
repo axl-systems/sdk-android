@@ -1,14 +1,16 @@
 # axl SDK
 
-Android SDK for integrating AXL RFID POS devices over USB.
+Android SDK for integrating AXL RFID POS devices over USB or Bluetooth.
 
-**Version:** 26.2.1 &nbsp;·&nbsp; **Min SDK:** Android 8.0 (API 26) &nbsp;·&nbsp; **Language:** Java 11 &nbsp;·&nbsp; **License:** Apache 2.0
+**Version:** 26.2.2 &nbsp;·&nbsp; **Min SDK:** Android 8.0 (API 26) &nbsp;·&nbsp; **Language:** Java 11 &nbsp;·&nbsp; **License:** Apache 2.0
 
 ---
 
 ## Overview
 
-axl SDK provides a clean Android API to communicate with AXL RFID hardware over USB. It handles the USB connection lifecycle, device handshake protocol, RFID tag scanning, barcode reading, NFC reading, device configuration, and checkout transactions — so your app only needs to respond to events.
+axl SDK provides a clean Android API to communicate with AXL RFID hardware over **USB** or **Bluetooth LE**. It handles the connection lifecycle, device handshake protocol, RFID tag scanning, barcode reading, NFC reading, device configuration, and checkout transactions — so your app only needs to respond to events.
+
+> **Bluetooth note:** When connected via Bluetooth, the SDK operates in **configuration-only mode**. Reading (RFID, Barcode, NFC) and checkout commands are blocked. Only `sendDeviceConfig()` is permitted over BLE. This is enforced automatically when the device reports an active USB host connection.
 
 ---
 
@@ -17,32 +19,52 @@ axl SDK provides a clean Android API to communicate with AXL RFID hardware over 
 - Android 8.0+ (API 26)
 - USB OTG support on the Android device
 - AXL RFID hardware (AXL FLAT, AXL BIN, or AXL GATE)
+- Bluetooth 4.0+ for BLE connectivity (optional)
 
 ---
 
 ## Installation
 
-### Option A — Local AAR
+Copy `axlsdk.aar` into `app/libs/`.
 
-1. Copy `axlsdk.aar` into `app/libs/`.
-2. In `app/build.gradle`:
+> The SDK depends on `usb-serial-for-android` which is hosted on JitPack. Add the JitPack repository and declare both dependencies as shown below.
 
-```groovy
+### Kotlin DSL
+
+```kotlin
+// settings.gradle.kts
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+        maven { url = uri("https://jitpack.io") }
+    }
+}
+
+// app/build.gradle.kts
 dependencies {
-    implementation fileTree(dir: 'libs', include: ['*.aar'])
-    implementation 'com.github.mik3y:usb-serial-for-android:3.8.1'
+    implementation(files("libs/axlsdk.aar"))
+    implementation("com.github.mik3y:usb-serial-for-android:3.9.0")
 }
 ```
 
-### Option B — Module reference (monorepo)
+### Groovy DSL
 
 ```groovy
-// settings.gradle
-include ':axlsdk'
+// build.gradle (project-level)
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+        maven { url = uri("https://jitpack.io") }
+    }
+}
 
 // app/build.gradle
 dependencies {
-    implementation project(':axlsdk')
+    implementation files('libs/axlsdk.aar')
+    implementation 'com.github.mik3y:usb-serial-for-android:3.9.0'
 }
 ```
 
@@ -54,6 +76,15 @@ dependencies {
 
 ```xml
 <uses-feature android:name="android.hardware.usb.host" android:required="false" />
+
+<!-- Bluetooth LE (API 31+) -->
+<uses-permission android:name="android.permission.BLUETOOTH_SCAN"
+    android:usesPermissionFlags="neverForLocation" />
+<uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+<!-- Bluetooth LE (API < 31) -->
+<uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+<uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
 
 <activity android:name=".MainActivity">
     <intent-filter>
@@ -95,57 +126,28 @@ dependencies {
 
 ## Quick Start
 
+### USB
+
 ```java
-// 1. Initialize (once, e.g. in Activity.onCreate)
 Sdk sdk = Sdk.getInstance();
 sdk.initialize(context);
+sdk.setListener(listener);
+sdk.connect();             // USB — full access (read, checkout, config)
+```
 
-// 2. Register listener
-sdk.setListener(new SdkListener() {
+### Bluetooth (config updates only)
 
-    @Override
-    public void onConnected() {
-        // Device ready — enable your UI
-    }
+```java
+// 1. Scan for nearby AXL devices
+sdk.startBleScan();        // fires onBleDeviceFound() for each device found
 
-    @Override
-    public void onDeviceIdentified(DeviceInfo info) {
-        Log.i(TAG, "Connected: " + info.getDeviceName());
-    }
+// 2. Connect to selected device
+sdk.connectBle("AA:BB:CC:DD:EE:FF");   // fires onConnected() after handshake
 
-    @Override
-    public void onTagDetected(String epc, int antenna) {
-        // Add EPC to your list
-    }
+// 3. Only sendDeviceConfig() is permitted over BLE
+sdk.sendDeviceConfig(config);
 
-    @Override
-    public void onCommandAcknowledged(String cmd) {
-        Log.i(TAG, "ACK: " + cmd);
-    }
-
-    @Override
-    public void onDisconnected() {
-        // Update UI to disconnected state
-    }
-
-    @Override
-    public void onError(String error) {
-        Log.e(TAG, "Error: " + error);
-    }
-});
-
-// 3. Connect
-sdk.connect();
-
-// 4. Scan
-sdk.startReading();
-sdk.pauseReading();
-sdk.stopReading(collectedEpcs);
-
-// 5. Checkout
-sdk.checkoutCompleted("#TX001", collectedEpcs);
-
-// 6. Disconnect
+// 4. Disconnect
 sdk.disconnect();
 ```
 
@@ -162,8 +164,9 @@ sdk.disconnect();
 | `initialize(context)` | Initialize with default configuration |
 | `initialize(context, SdkConfig)` | Initialize with custom configuration |
 | `setListener(SdkListener)` | Register event listener (all callbacks on main thread) |
-| `connect()` | Open USB connection and perform device handshake |
+| `connect()` | Open transport connection and perform device handshake |
 | `disconnect()` | Gracefully close the connection |
+| `reconfigure(SdkConfig)` | Change transport at runtime (disconnects first) |
 
 **State**
 
@@ -172,9 +175,11 @@ sdk.disconnect();
 | `isInitialized()` | `true` after `initialize()` |
 | `isConnected()` | `true` when device handshake is complete |
 | `getCurrentMode()` | Current `SdkMode` enum value |
-| `getDeviceInfo()` | Device SKU and display name |
+| `getDeviceInfo()` | Device SKU, type and display name from handshake |
 | `getConnectedAntennas()` | List of detected antenna port numbers |
 | `getConnectedDeviceName()` | Human-readable USB device name |
+| `isBluetoothTransport()` | `true` when active transport is BLE |
+| `isUsbLockedByRemote()` | `true` when BLE-connected and device reports USB host active |
 
 **Diagnostics**
 
@@ -187,14 +192,15 @@ sdk.disconnect();
 
 ### RFID Commands
 
+> **BLE restriction:** All read and checkout commands below are blocked when `isUsbLockedByRemote()` is true. Only `sendDeviceConfig()` is permitted over BLE when a USB host is active on the device.
+
 | Method | Description |
 |---|---|
 | `startReading()` | Start scanning for RFID tags |
 | `pauseReading()` | Pause scanning (collected tags preserved) |
 | `stopReading(List<String> epcs)` | Stop scanning and send EPC list to device |
-| `checkoutCompleted(txnId, epcs)` | Complete a POS checkout transaction |
-| `sendDeviceConfig(RfidDeviceConfig)` | Push device configuration to device |
-| `updateDeviceConfig(RfidDeviceConfig)` | Push device configuration (full format) |
+| `checkoutCompleted(txnId, epcs)` | Complete a POS checkout transaction (auto-batched) |
+| `sendDeviceConfig(RfidDeviceConfig)` | Push device configuration — **allowed over BLE** |
 | `getReadingStatus()` | Query whether the reader is currently active |
 | `getHealthInfo()` | Request device health diagnostics |
 
@@ -212,6 +218,15 @@ sdk.disconnect();
 | `startNfcReading()` | Start NFC reader |
 | `stopNfcReading()` | Stop NFC reader |
 
+### Bluetooth Commands
+
+| Method | Description |
+|---|---|
+| `connectBle(macAddress)` | Connect to a BLE device by MAC address |
+| `startBleScan()` | Scan for nearby BLE devices (fires `onBleDeviceFound` per device) |
+| `stopBleScan()` | Stop the active BLE scan |
+| `getBondedBleDevices()` | Return already-paired BLE devices immediately (no scan needed) |
+
 ---
 
 ## Event Callbacks (`SdkListener`)
@@ -222,11 +237,19 @@ All callbacks are dispatched on the **main (UI) thread**.
 
 | Callback | When fired |
 |---|---|
-| `onConnected()` | USB open and device handshake complete — ready for commands |
-| `onDeviceIdentified(DeviceInfo)` | Device SKU and display name parsed from handshake |
+| `onConnected()` | Transport connected and device handshake complete |
+| `onDeviceIdentified(DeviceInfo)` | Device SKU, type and display name from handshake |
 | `onAntennasDetected(List<Integer>)` | Antenna ports reported by device hardware |
+| `onDeviceConfigLoaded(JSONObject)` | Device's current configuration received on connect |
 | `onDisconnected()` | Device disconnected (user-initiated or unexpected) |
 | `onError(String)` | Any SDK or transport error |
+
+### USB Lock (BLE transport)
+
+| Callback | When fired |
+|---|---|
+| `onUsbLocked()` | Device reports a USB host is active — BLE is config-only |
+| `onUsbUnlocked()` | USB host disconnected — full BLE access restored |
 
 ### RFID
 
@@ -236,7 +259,7 @@ All callbacks are dispatched on the **main (UI) thread**.
 | `onCommandAcknowledged(cmd)` | Device acknowledged a sent command |
 | `onReadingPaused()` | Scanning paused successfully |
 | `onReadingStopped()` | Scanning stopped and EPC list delivered to device |
-| `onCheckoutConfirmed(txnId)` | Checkout transaction acknowledged by device |
+| `onCheckoutConfirmed(txnId)` | All checkout batches acknowledged — transaction complete |
 | `onConfigUpdated()` | Device config update acknowledged |
 | `onReaderStatusReceived(boolean)` | Reader active/inactive status response |
 | `onHealthInfoReceived(JSONObject)` | Device CPU, memory, and temperature metrics |
@@ -258,6 +281,13 @@ All callbacks are dispatched on the **main (UI) thread**.
 | `onNfcCommandAcknowledged(cmd)` | NFC command acknowledged |
 | `onNfcReadingStopped()` | NFC reading stopped |
 
+### Bluetooth Scan
+
+| Callback | When fired |
+|---|---|
+| `onBleDeviceFound(BleDeviceInfo)` | One device found during active scan |
+| `onBleScanComplete(List<BleDeviceInfo>)` | Scan ended — full result list provided |
+
 ---
 
 ## Configuration
@@ -266,13 +296,31 @@ All callbacks are dispatched on the **main (UI) thread**.
 
 ```java
 SdkConfig config = new SdkConfig.Builder()
-    .commandTimeoutMs(5000)   // ACK wait timeout (default: 5000ms)
-    .autoReconnect(true)      // Reconnect on unexpected disconnect (default: true)
-    .debugLogging(false)      // Verbose SDK logging
-    .baudRate(115200)         // Serial baud rate (default: 115200)
+    .commandTimeoutMs(5000)       // ACK wait timeout (default: 5000 ms)
+    .autoReconnect(true)          // Reconnect on unexpected disconnect (default: true)
+    .debugLogging(false)          // Verbose SDK logging
+    .baudRate(115200)             // Serial baud rate (default: 115200)
+    .checkoutBatchSize(15)        // EPCs per checkout_complete batch (default: 15)
     .build();
 
 sdk.initialize(context, config);
+```
+
+**Checkout batching** — `checkoutBatchSize` splits large EPC lists across multiple sequential `checkout_complete` commands. Each batch waits for the device ACK before the next is sent. `onCheckoutConfirmed` fires once after all batches complete. Default `15` protects the STM device from memory pressure on large reads. Set to `0` to disable batching.
+
+**BLE transport:**
+
+```java
+SdkConfig bleConfig = new SdkConfig.Builder()
+    .transportType(TransportType.BLUETOOTH)
+    .bleDeviceAddress("AA:BB:CC:DD:EE:FF")
+    .build();
+```
+
+Or use the convenience method which handles reconfiguration automatically:
+
+```java
+sdk.connectBle("AA:BB:CC:DD:EE:FF");
 ```
 
 ### `RfidDeviceConfig` — Device hardware settings
@@ -281,24 +329,62 @@ sdk.initialize(context, config);
 RfidDeviceConfig config = new RfidDeviceConfig.Builder()
     .region("ID")
     .protocol("GEN2")
-    .readPower(1800)
     .antenna(1, true,  1800)   // (port, active, readPowerMdBm)
     .antenna(2, true,  1800)
     .antenna(3, false, 1800)
     .antenna(4, false, 1800)
-    .networkLan()              // or .networkWifi(ssid, security, password)
+    .networkWifi("MySSID", "WPA2", "password")  // or .networkLan()
     .hopTime(200)
     .readOnFrequency(500)
     .readOffFrequency(500)
     .hopFrequencyKhz("903250")
     .build();
 
-// AXL FLAT (DeviceInfo.DEVICE_TYPE_AXL_FLAT)
-sdk.sendDeviceConfig(config);
-
-// Other devices
-sdk.updateDeviceConfig(config);
+sdk.sendDeviceConfig(config);   // allowed over both USB and BLE
 ```
+
+---
+
+## Connection Handshake Protocol
+
+On every successful transport connection the SDK exchanges a handshake with the device.
+
+**Sent by SDK on connect:**
+```json
+{"type":"SYS","cmd":"connection_sync"}
+```
+
+**Device response:**
+```json
+{
+  "type": "SYS",
+  "cmd": "ack_connection_sync",
+  "device": "AXL FLAT STM",
+  "sku": "A120IAB",
+  "device_type": "AXL_FLAT",
+  "usb": true,
+  "config": { "region": "NA", "protocol": "GEN2", ... }
+}
+```
+
+- `usb: true` — A USB host is already active on the device. The SDK enters **config-only mode** and fires `onUsbLocked()`. Reading and checkout are blocked until the USB host disconnects.
+- `usb` absent — No USB host active; full access granted.
+- `config` — Device's current hardware configuration. Fires `onDeviceConfigLoaded(config)` immediately after `onConnected()`.
+
+---
+
+## Bluetooth — Config-Only Mode
+
+When connected via BLE the SDK checks the `usb` field in `ack_connection_sync`:
+
+| Scenario | `usb` field | SDK mode | Allowed commands |
+|---|---|---|---|
+| BLE only (no USB tablet) | absent | Full access | All commands |
+| BLE + USB tablet connected | `true` | Config-only | `sendDeviceConfig()` only |
+
+When the USB tablet disconnects, the device broadcasts `usb_state_changed` to all BLE clients. The SDK receives this and fires `onUsbUnlocked()`, restoring full access.
+
+Attempting blocked commands while USB-locked dispatches `onError("Device locked by USB host")`.
 
 ---
 
@@ -307,7 +393,7 @@ sdk.updateDeviceConfig(config);
 ```
 IDLE ─── connect() ──────────► CONNECTED
                                    │
-                       startReading() ▼
+                       startReading() ▼         (USB only)
                                SCANNING ◄─────────────┐
                                    │                  │
                        pauseReading() ▼    startReading() │
@@ -316,7 +402,7 @@ IDLE ─── connect() ──────────► CONNECTED
                        stopReading() ▼
                                CONNECTED
                                    │
-              checkoutCompleted() ▼
+              checkoutCompleted() ▼              (USB only)
                        CHECKOUT_PENDING ──► CONNECTED
                                    │
                        disconnect() ▼
@@ -341,11 +427,11 @@ IDLE ─── connect() ──────────► CONNECTED
 
 ## Supported Devices
 
-| Display Name | Device Type | Constant |
-|---|---|---|
-| AXL FLAT | `AXL_FLAT` | `DeviceInfo.DEVICE_TYPE_AXL_FLAT` |
-| AXL BIN | `AXL_BIN` | `DeviceInfo.DEVICE_TYPE_AXL_BIN` |
-| AXL GATE | `AXL_GATE` | `DeviceInfo.DEVICE_TYPE_AXL_GATE` |
+| Display Name | Device Type | SKU | Constant |
+|---|---|---|---|
+| AXL FLAT STM | `AXL_FLAT` | `A120IAB` | `DeviceInfo.DEVICE_TYPE_AXL_FLAT` |
+| AXL BIN | `AXL_BIN` | — | `DeviceInfo.DEVICE_TYPE_AXL_BIN` |
+| AXL GATE | `AXL_GATE` | — | `DeviceInfo.DEVICE_TYPE_AXL_GATE` |
 
 ---
 
@@ -357,18 +443,6 @@ RFIDSDK/
 ├── sample/         ← Reference POS integration app
 ├── jitpack.yml     ← JitPack build config
 └── LICENSE
-```
-
----
-
-## Version
-
-```java
-Log.i(TAG, "axl SDK " + SdkVersion.NAME);  // "26.2.1"
-
-if (SdkVersion.CODE >= 260201) {
-    // features added in 26.2.1
-}
 ```
 
 ---

@@ -6,6 +6,73 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [26.2.2] — 2026-06-04
+
+### Added
+- Bluetooth LE transport — configuration updates only (see full feature list in 26.3.0 below)
+- `SdkConfig.checkoutBatchSize` — default 15 EPCs per `checkout_complete` batch
+- `onDeviceConfigLoaded(JSONObject)` — device's current config received on connect
+- `onUsbLocked()` / `onUsbUnlocked()` — BLE config-only mode callbacks
+- `DeviceInfo.getSku()` and `DeviceInfo.SKU_AXL_FLAT = "A120IAB"`
+- `Sdk.isUsbLockedByRemote()`, `Sdk.isBluetoothTransport()`
+- BLE scan: `startBleScan()`, `stopBleScan()`, `getBondedBleDevices()`, `connectBle()`
+
+### Changed
+- `usb-serial-for-android` updated to `3.9.0`
+- All read/checkout commands blocked when USB-locked via BLE
+
+---
+
+## [26.3.0] — 2026-06-04
+
+### Added
+
+**Bluetooth LE transport**
+- `TransportType.BLUETOOTH` — new transport option alongside existing `USB`
+- `BluetoothLeTransport` — Nordic UART Service (NUS) GATT transport using the same JSON protocol as USB
+- `Sdk.connectBle(macAddress)` — convenience method to reconfigure and connect via BLE
+- `Sdk.startBleScan()` / `stopBleScan()` / `getBondedBleDevices()` — BLE device discovery
+- `Sdk.isBluetoothTransport()` — returns `true` when active transport is BLE
+- `SdkConfig.Builder.bleDeviceAddress(String)` — BLE MAC address for BLUETOOTH transport type
+- `BleDeviceInfo` model — name, address, RSSI, bonded state
+- `SdkListener.onBleDeviceFound(BleDeviceInfo)` — fires per device during scan
+- `SdkListener.onBleScanComplete(List<BleDeviceInfo>)` — fires when scan ends
+
+**USB lock / config-only mode**
+- `Sdk.isUsbLockedByRemote()` — `true` when BLE-connected and device reports USB host active
+- `SdkListener.onUsbLocked()` — fires when `ack_connection_sync` or `usb_state_changed` contains `usb:true`
+- `SdkListener.onUsbUnlocked()` — fires when device broadcasts `usb_state_changed` with `usb:false`
+- All read and checkout commands (`startReading`, `pauseReading`, `stopReading`, `checkoutCompleted`, `startBarcodeReading`, `stopBarcodeReading`, `startNfcReading`, `stopNfcReading`) throw `IllegalStateException` and dispatch `onError` when USB-locked
+- `Command.CMD_USB_STATE_CHANGED = "usb_state_changed"` — new inbound SYS command
+
+**Device config loaded on connect**
+- `SdkListener.onDeviceConfigLoaded(JSONObject config)` — fires after `onConnected()` with the device's current hardware configuration parsed from `ack_connection_sync`
+- Apps can use this to pre-populate Settings dialogs without a separate fetch command
+
+**Checkout batching**
+- `SdkConfig.DEFAULT_CHECKOUT_BATCH_SIZE = 15` — default EPC batch size
+- `SdkConfig.Builder.checkoutBatchSize(int)` — configure EPCs per `checkout_complete` command
+- `checkoutCompleted()` automatically splits EPC lists into sequential batches
+- `onCheckoutConfirmed()` fires once after all batches ACK'd — not per batch
+- `CommandProcessor.setSuppressCheckoutConfirmed(boolean)` — internal mechanism for batch control
+- Set to `0` to disable batching (send all EPCs in one command)
+
+**DeviceInfo updates**
+- `DeviceInfo.getSku()` — returns the device SKU string from `ack_connection_sync` (e.g. `"A120IAB"`)
+- `DeviceInfo.SKU_AXL_FLAT = "A120IAB"` — SKU constant for AXL FLAT STM device
+- New constructor `DeviceInfo(name, deviceType, sku)` — existing 2-arg constructor unchanged
+
+### Changed
+
+- `ack_connection_sync` response now parsed for `sku`, `usb`, and `config` fields in addition to existing `device` and `device_type`
+- `connection_sync` and `disconnect_sync` handshake commands unchanged in wire format — firmware update required to enable `usb:true` signalling
+
+### Dependencies
+
+- `usb-serial-for-android` updated from `3.8.1` to `3.9.0`
+
+---
+
 ## [26.2.1] — 2026-05-29
 
 Initial public release of axl SDK.
@@ -47,7 +114,6 @@ Initial public release of axl SDK.
 - Frequency: hop time, read on/off frequency, hop frequency list
 - `toJson()` — full `update_config` payload
 - `toAe03Json()` — lean `config` payload for AXL FLAT devices
-- `put(key, value)` escape hatch for future fields
 
 **SDK Configuration (`SdkConfig.Builder`)**
 - Configurable command ACK timeout, baud rate, auto-reconnect, debug logging
@@ -58,11 +124,6 @@ Initial public release of axl SDK.
 - `setDebugLogging(boolean)` — toggle at runtime
 - `getDiagnosticReport()` — formatted log snapshot for support
 - `onDeviceLogReceived(level, message, timestamp)` — real-time firmware log stream
-
-**Supported Devices**
-- AXL FLAT — `DeviceInfo.DEVICE_TYPE_AXL_FLAT`
-- AXL BIN — `DeviceInfo.DEVICE_TYPE_AXL_BIN`
-- AXL GATE — `DeviceInfo.DEVICE_TYPE_AXL_GATE`
 
 **Error Codes**
 - E001 `DEVICE_NOT_CONNECTED`

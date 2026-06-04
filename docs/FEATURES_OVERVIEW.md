@@ -1,13 +1,13 @@
 # axl SDK — Features Overview
 
-**Version 26.2.1**  
-Android SDK for AXL RFID POS hardware integration
+**Version 26.2.2**  
+Android SDK for AXL RFID POS hardware integration over USB and Bluetooth LE
 
 ---
 
 ## What is axl SDK?
 
-axl SDK is an Android library that lets your app communicate with AXL RFID POS devices over a USB cable. It takes care of all the low-level communication details — USB connection, protocol messaging, error handling, and reconnection — so your team can focus on building the POS application, not the hardware layer.
+axl SDK is an Android library that lets your app communicate with AXL RFID POS devices over a **USB cable** or **Bluetooth LE**. It takes care of all the low-level communication details — transport connection, protocol messaging, error handling, and reconnection — so your team can focus on building the POS application, not the hardware layer.
 
 ---
 
@@ -19,14 +19,44 @@ Connect to an AXL RFID device with a single method call. The SDK automatically:
 - Detects the device when plugged in
 - Requests USB permission from the user (once)
 - Performs a connection handshake with the device
-- Reports the device type and name to your app
+- Reports the device type, SKU, and name to your app
+- Returns the device's current configuration immediately on connect
 - Reconnects automatically if the cable is briefly disconnected
 
 Your app receives a simple `onConnected()` or `onDisconnected()` callback — no USB driver code required.
 
 ---
 
-### 2. RFID Tag Scanning
+### 2. Bluetooth LE Connectivity — Configuration Only
+
+Connect to an AXL device over Bluetooth LE to push configuration updates remotely — without a USB cable.
+
+**Important:** BLE connectivity is designed for **configuration updates only**. When a USB tablet is actively connected to the device, the BLE-connected tablet automatically enters config-only mode. Reading (RFID, Barcode, NFC) and checkout are not available over BLE in this scenario.
+
+**How it works:**
+- Scan for nearby AXL devices using `startBleScan()`
+- Already-paired devices appear instantly via `getBondedBleDevices()`
+- Connect to a selected device with `connectBle(macAddress)`
+- On connect, the device reports its USB status (`usb:true` = USB host active)
+- If `usb:true` → SDK fires `onUsbLocked()` — only `sendDeviceConfig()` is permitted
+- When the USB tablet disconnects, the device broadcasts `usb_state_changed` → SDK fires `onUsbUnlocked()` — full access restored
+
+**BLE uses Nordic UART Service (NUS)** over GATT — the same JSON command protocol as USB, so all device configuration commands work identically over both transports.
+
+---
+
+### 3. Device Configuration on Connect
+
+When the device acknowledges the connection handshake (`ack_connection_sync`), it returns its **current hardware configuration** in the response. The SDK fires `onDeviceConfigLoaded(JSONObject config)` immediately after `onConnected()`.
+
+This means:
+- Your Settings dialog can be pre-populated with live device values automatically
+- No separate "fetch config" command is needed
+- Works the same over both USB and BLE
+
+---
+
+### 4. RFID Tag Scanning
 
 Start, pause, and stop RFID tag scanning at any time.
 
@@ -36,48 +66,67 @@ Start, pause, and stop RFID tag scanning at any time.
 
 The SDK also tells you which **antenna port** detected each tag — helpful for multi-antenna setups (up to 4 ports).
 
----
-
-### 3. Checkout Transaction
-
-When the customer is ready to pay, call `checkoutCompleted(transactionId, tags)`. The SDK sends the transaction number and the full EPC list to the device in a single command. The device responds with a confirmation (`onCheckoutConfirmed`) when it has processed the transaction.
+> **BLE restriction:** RFID scanning is blocked when `isUsbLockedByRemote()` is true.
 
 ---
 
-### 4. Barcode Scanning
+### 5. Checkout Transaction — Auto-Batched
+
+When the customer is ready to pay, call `checkoutCompleted(transactionId, tags)`. The SDK automatically splits the EPC list into batches and sends them sequentially — protecting the STM device from memory pressure on large reads.
+
+**Batching behaviour:**
+- Default batch size: **15 EPCs per `checkout_complete` command**
+- If total EPCs ≤ batch size → single command (no change in behaviour)
+- If total EPCs > batch size → multiple commands sent sequentially, each waiting for `ack_checkout_complete`
+- `onCheckoutConfirmed(txnId)` fires **once** after all batches complete — not per batch
+- Configurable via `SdkConfig.Builder().checkoutBatchSize(n)` — set to `0` to disable batching
+
+Example — 45 EPCs with default batch size 15:
+```
+Batch 1 → checkout_complete [EPC 1–15]   → ack ✓
+Batch 2 → checkout_complete [EPC 16–30]  → ack ✓
+Batch 3 → checkout_complete [EPC 31–45]  → ack ✓
+→ onCheckoutConfirmed("#TX123") fires once
+```
+
+> **BLE restriction:** Checkout is blocked when `isUsbLockedByRemote()` is true.
+
+---
+
+### 6. Barcode Scanning
 
 Start and stop an attached barcode scanner. Each scanned barcode triggers `onBarcodeTagDetected(data)` with the raw barcode string. Useful for scanning loyalty cards, shipping labels, or product codes alongside RFID.
 
+> **BLE restriction:** Barcode scanning is blocked when `isUsbLockedByRemote()` is true.
+
 ---
 
-### 5. NFC Reading
+### 7. NFC Reading
 
 Start and stop NFC card reading. Each detected NFC tag triggers `onNfcTagDetected(uid, antenna)` with the tag's UID. Works alongside RFID on the same device.
 
+> **BLE restriction:** NFC reading is blocked when `isUsbLockedByRemote()` is true.
+
 ---
 
-### 6. Device Configuration
+### 8. Device Configuration
 
-Push hardware settings to the device at any time — no restart required. Configurable settings include:
+Push hardware settings to the device at any time — no restart required. **Available over both USB and BLE.** Configurable settings include:
 
 | Setting | Description |
 |---|---|
-| Region | RFID frequency region (e.g. Indonesia = "ID") |
+| Region | RFID frequency region (e.g. Indonesia = "ID", North America = "NA") |
 | Protocol | Tag protocol (default: GEN2) |
 | Read Power | Antenna transmit power in mdBm |
 | Antennas | Enable/disable individual antenna ports (1–4) |
 | Network | LAN or Wi-Fi (with SSID, security type, password) |
-| Frequency | Hop frequency, hop time, read on/off timing |
+| Frequency | Hop frequency list, hop time, read on/off timing |
 
 The device acknowledges config updates with `onConfigUpdated()`.
 
-Two config formats are supported:
-- **`sendDeviceConfig()`** — Lean format for AXL FLAT devices
-- **`updateDeviceConfig()`** — Full format for other AXL devices
-
 ---
 
-### 7. Device Health Monitoring
+### 9. Device Health Monitoring
 
 Call `getHealthInfo()` to request a real-time health report from the device. The response (`onHealthInfoReceived`) contains:
 
@@ -89,13 +138,13 @@ Useful for diagnostics and support.
 
 ---
 
-### 8. Device Log Streaming
+### 10. Device Log Streaming
 
 When device-side debug logging is active, the firmware streams log entries over USB in real time. Your app receives each entry via `onDeviceLogReceived(level, message, timestamp)` — level can be DEBUG, INFO, WARN, or ERROR. Useful for troubleshooting device-side behaviour without physical access to the hardware.
 
 ---
 
-### 9. SDK Logging & Diagnostics
+### 11. SDK Logging & Diagnostics
 
 The SDK has a built-in logging system with five severity levels (VERBOSE → ERROR). You can:
 
@@ -106,7 +155,7 @@ The SDK has a built-in logging system with five severity levels (VERBOSE → ERR
 
 ---
 
-### 10. Error Reporting
+### 12. Error Reporting
 
 All errors surface through a single `onError(message)` callback with a human-readable description and an error code:
 
@@ -122,11 +171,25 @@ All errors surface through a single `onError(message)` callback with a human-rea
 
 ---
 
+## Transport Comparison
+
+| Feature | USB | Bluetooth LE |
+|---|---|---|
+| RFID reading | ✓ | ✗ (USB-locked) |
+| Barcode reading | ✓ | ✗ (USB-locked) |
+| NFC reading | ✓ | ✗ (USB-locked) |
+| Checkout | ✓ | ✗ (USB-locked) |
+| Device config update | ✓ | ✓ |
+| Auto-reconnect | ✓ | — |
+| Range | Cable length | ~10 m |
+
+---
+
 ## Supported Hardware
 
 | Device | Use Case |
 |---|---|
-| **AXL FLAT** | Flat countertop POS reader |
+| **AXL FLAT STM** | Flat countertop POS reader |
 | **AXL BIN** | Bin / container scanning |
 | **AXL GATE** | Portal / gate scanning |
 
@@ -138,8 +201,9 @@ All errors surface through a single `onError(message)` callback with a human-rea
 |---|---|
 | Android version | 8.0 and above (API 26+) |
 | Language | Java 11 |
-| Connection | USB OTG (USB-A to USB-C or Micro-USB) |
-| Distribution | AAR file, module reference, or Maven |
+| USB connection | USB OTG (USB-A to USB-C or Micro-USB) |
+| BLE connection | Bluetooth 4.0+ (optional) |
+| Distribution | AAR file |
 
 ---
 
@@ -147,10 +211,10 @@ All errors surface through a single `onError(message)` callback with a human-rea
 
 The full integration with a POS app involves four steps:
 
-1. **Add the SDK** to your Android project (AAR file or Maven dependency)
+1. **Add the SDK** to your Android project (AAR file)
 2. **Initialize** the SDK once when the app starts
-3. **Implement `SdkListener`** to receive events (connected, tag detected, checkout confirmed, errors)
-4. **Call commands** (`connect`, `startReading`, `stopReading`, `checkoutCompleted`, etc.) in response to user actions
+3. **Implement `SdkListener`** to receive events (connected, tag detected, checkout confirmed, USB lock state, errors)
+4. **Call commands** (`connect`, `startReading`, `checkoutCompleted`, `sendDeviceConfig`, etc.) in response to user actions
 
 No background services, no complex setup, no native code required.
 
@@ -161,6 +225,7 @@ No background services, no complex setup, no native code required.
 - It does not manage your item database or EPC-to-product mapping — that stays in your app.
 - It does not handle payment processing — `checkoutCompleted` only signals the device; payment is your app's responsibility.
 - It does not manage Wi-Fi on the Android device itself — it configures Wi-Fi credentials on the connected RFID hardware.
+- It does not allow RFID reading or checkout over BLE when a USB host is active on the device.
 
 ---
 

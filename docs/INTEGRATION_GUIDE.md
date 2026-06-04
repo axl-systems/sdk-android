@@ -1,6 +1,6 @@
-# axl SDK — Integration Guide
+﻿# AXL RFID SDK â€” POS Integration Guide
 
-> **SDK version:** 26.2.1 · **Min Android SDK:** 26 (Android 8.0) · **Language:** Java / Kotlin
+SDK version: **26.2.2**
 
 ---
 
@@ -8,13 +8,13 @@
 
 1. [Setup](#1-setup)
 2. [Initialization](#2-initialization)
-3. [Connecting to the Device](#3-connecting-to-the-device)
-4. [Implementing SdkListener](#4-implementing-sdklistener)
-5. [RFID Scanning](#5-rfid-scanning)
-6. [Checkout](#6-checkout)
-7. [Device Configuration](#7-device-configuration)
-8. [Barcode Reading](#8-barcode-reading)
-9. [NFC Reading](#9-nfc-reading)
+3. [Connecting via USB](#3-connecting-via-usb)
+4. [Connecting via Bluetooth](#4-connecting-via-bluetooth)
+5. [Implementing SdkListener](#5-implementing-sdklistener)
+6. [Device Config Loaded on Connect](#6-device-config-loaded-on-connect)
+7. [Scanning](#7-scanning)
+8. [Checkout](#8-checkout)
+9. [Updating Device Config](#9-updating-device-config)
 10. [Health & Status](#10-health--status)
 11. [Disconnecting](#11-disconnecting)
 12. [SDK Modes](#12-sdk-modes)
@@ -26,38 +26,64 @@
 
 ## 1. Setup
 
-### 1.1 Add the SDK to Your Project
+### Add the AAR
 
-**Option A — Local AAR file (recommended for most projects)**
+Copy `axlsdk.aar` into `app/libs/`.
 
-Download `axlsdk.aar` and place it in your project:
+> The SDK depends on `usb-serial-for-android` hosted on JitPack. Add the repository and declare both dependencies as shown below.
 
-```
-your-pos-app/
-└── app/
-    └── libs/
-        └── axlsdk.aar
-```
+**Kotlin DSL**
 
-In `app/build.gradle`:
+```kotlin
+// settings.gradle.kts
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+        maven { url = uri("https://jitpack.io") }
+    }
+}
 
-```groovy
+// app/build.gradle.kts
 dependencies {
-    implementation fileTree(dir: 'libs', include: ['*.aar'])
-    implementation 'com.github.mik3y:usb-serial-for-android:3.8.1'
+    implementation(files("libs/axlsdk.aar"))
+    implementation("com.github.mik3y:usb-serial-for-android:3.9.0")
 }
 ```
 
-> When a new SDK version is released, replace `axlsdk.aar` in `app/libs/` and rebuild.
+**Groovy DSL**
 
----
+```groovy
+// build.gradle (project-level)
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+        maven { url = uri("https://jitpack.io") }
+    }
+}
 
-### 1.2 USB Permission
+// app/build.gradle
+dependencies {
+    implementation files('libs/axlsdk.aar')
+    implementation 'com.github.mik3y:usb-serial-for-android:3.9.0'
+}
+```
 
-Add to `AndroidManifest.xml`:
+### AndroidManifest.xml
 
 ```xml
 <uses-feature android:name="android.hardware.usb.host" android:required="false" />
+
+<!-- Bluetooth LE (API 31+) -->
+<uses-permission android:name="android.permission.BLUETOOTH_SCAN"
+    android:usesPermissionFlags="neverForLocation" />
+<uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+<!-- Bluetooth LE (API < 31) -->
+<uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+<uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
 
 <activity android:name=".MainActivity">
     <intent-filter>
@@ -69,68 +95,38 @@ Add to `AndroidManifest.xml`:
 </activity>
 ```
 
-Create `res/xml/device_filter.xml`:
+`res/xml/device_filter.xml` (STM32 CDC â€” default VID/PID):
 
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- FTDI FT232R  VID=0x0403  PID=0x6001 -->
-    <usb-device vendor-id="1027"  product-id="24577" />
-    <!-- FTDI FT2232H VID=0x0403  PID=0x6010 -->
-    <usb-device vendor-id="1027"  product-id="24592" />
-    <!-- FTDI FT4232H VID=0x0403  PID=0x6011 -->
-    <usb-device vendor-id="1027"  product-id="24593" />
-    <!-- STM32 USB CDC VID=0x0483  PID=0x5740 -->
-    <usb-device vendor-id="1155"  product-id="22336" />
-    <!-- STM32 USB CDC VID=0x0483  PID=0x5741 (alt PID) -->
-    <usb-device vendor-id="1155"  product-id="22337" />
-    <!-- Silicon Labs CP210x VID=0x10C4  PID=0xEA60 -->
-    <usb-device vendor-id="4292"  product-id="60000" />
-    <!-- Prolific PL2303 VID=0x067B  PID=0x2303 -->
-    <usb-device vendor-id="1659"  product-id="8963"  />
-    <!-- CH340 / CH341  VID=0x1A86  PID=0x7523 -->
-    <usb-device vendor-id="6790"  product-id="29987" />
-    <!-- CH9102 (CH343) VID=0x1A86  PID=0x55D4 -->
-    <usb-device vendor-id="6790"  product-id="21972" />
+    <usb-device vendor-id="1155" product-id="22336" />
 </resources>
 ```
 
-> The SDK uses the `usb-serial-for-android` library which supports all the above chip families. Android uses this file to auto-launch the app and prompt for USB permission when a matching device is plugged in — no runtime permission declaration is needed in the manifest.
+> VID `1155` = `0x0483` (STMicroelectronics), PID `22336` = `0x5740` (STM32 CDC).
 
 ---
 
 ## 2. Initialization
 
-Call `initialize()` **once**, before any other SDK method. `Application.onCreate()` or `Activity.onCreate()` are both suitable.
+Call `initialize()` once before any other SDK method. `Activity.onCreate()` is the typical place.
 
-**Kotlin**
 ```kotlin
 val sdk = Sdk.getInstance()
-sdk.initialize(context)
-sdk.setListener(this)    // register before connect()
+sdk.initialize(context)     // uses sensible defaults
+sdk.setListener(this)       // register before connect()
 ```
-
-**Java**
-```java
-Sdk sdk = Sdk.getInstance();
-sdk.initialize(context);
-sdk.setListener(this);
-```
-
-> `initialize()` is idempotent — duplicate calls are silently ignored.
-
----
 
 ### Custom SdkConfig
 
-Use `SdkConfig.Builder` to tune timeouts or enable debug logging:
-
 ```kotlin
 val config = SdkConfig.Builder()
-    .commandTimeoutMs(5000)   // ms to wait for device ACK before error E003
-    .autoReconnect(true)      // reconnect automatically on transport drop
-    .debugLogging(false)      // true = verbose raw-JSON logs (development only)
-    .baudRate(115200)         // must match device firmware
+    .baudRate(115200)              // serial baud rate (default: 115200)
+    .commandTimeoutMs(5000)        // ms to wait for device ACK (default: 5000)
+    .autoReconnect(true)           // reconnect on unexpected USB drop (default: true)
+    .debugLogging(false)           // true = verbose raw-JSON logs
+    .checkoutBatchSize(15)         // EPCs per checkout_complete batch (default: 15)
     .build()
 
 sdk.initialize(context, config)
@@ -138,333 +134,374 @@ sdk.initialize(context, config)
 
 | Option | Default | Notes |
 |---|---|---|
-| `commandTimeoutMs` | `5000` | Increase if the device is slow to respond |
-| `autoReconnect` | `true` | Reconnects automatically on USB drop |
-| `debugLogging` | `false` | Enable in development, disable in production |
-| `baudRate` | `115200` | Must match the RFID device firmware setting |
+| `baudRate` | `115200` | Must match RFID device firmware |
+| `commandTimeoutMs` | `5000` | ms before `E003 COMMAND_TIMEOUT` |
+| `autoReconnect` | `true` | Auto-reconnect on USB failure |
+| `debugLogging` | `false` | Enable in development; disable in production |
+| `checkoutBatchSize` | `15` | EPCs per `checkout_complete`; `0` = no batching |
+
+> `initialize()` is idempotent â€” duplicate calls are silently ignored.
 
 ---
 
-## 3. Connecting to the Device
+## 3. Connecting via USB
 
 ```kotlin
 sdk.connect()
 ```
 
-This opens the USB transport and performs a `connection_sync` handshake. The result arrives asynchronously via `SdkListener`:
+Internally this:
+1. Opens the USB serial transport
+2. Sends `{"type":"SYS","cmd":"connection_sync"}` to the device
+3. Waits for `ack_connection_sync` response (device info + current config)
+4. Fires `onConnected()` on success, or `onError()` on timeout/failure
 
-- **Success** → `onConnected()` fires, followed by `onDeviceIdentified(deviceInfo)` and `onAntennasDetected(antennas)`
-- **Failure** → `onError(error)` fires with code `E001`, `E002`, or `E003`
+After `onConnected()` the SDK also fires:
+- `onDeviceIdentified(DeviceInfo)` â€” device name, SKU, type
+- `onAntennasDetected(List<Int>)` â€” hardware antenna port numbers
+- `onDeviceConfigLoaded(JSONObject)` â€” device's current hardware configuration
 
 ```kotlin
 override fun onConnected() {
-    // Safe to call startReading(), sendDeviceConfig(), etc.
+    // USB full access â€” read, checkout, and config all available
 }
 
 override fun onDeviceIdentified(deviceInfo: DeviceInfo) {
-    // deviceInfo.deviceName  → e.g. "AXL FLAT"
-    // deviceInfo.deviceType  → e.g. "AXL_FLAT"
-    Log.i(TAG, "Device: ${deviceInfo.deviceName} (${deviceInfo.deviceType})")
+    val name = deviceInfo.deviceName   // e.g. "AXL FLAT STM"
+    val sku  = deviceInfo.sku          // e.g. "A120IAB"
+    val type = deviceInfo.deviceType   // e.g. "AXL_FLAT"
 }
 
-override fun onAntennasDetected(antennas: List<Int>) {
-    // e.g. [1, 2, 3, 4] — use to populate antenna selection UI
+override fun onDeviceConfigLoaded(config: JSONObject) {
+    // Pre-populate settings UI with live device values
+    val region = config.optString("region")
+    val ssid   = config.optJSONObject("network_settings")
+                       ?.optJSONObject("wifi")?.optString("ssid")
 }
 ```
 
 ---
 
-## 4. Implementing SdkListener
+## 4. Connecting via Bluetooth
 
-Register with `sdk.setListener(listener)`. **All callbacks are delivered on the main (UI) thread** — no `runOnUiThread()` needed.
+> **Important:** Bluetooth connectivity is for **configuration updates only**. When the AXL device has an active USB host (another tablet connected via USB cable), the BLE-connected tablet operates in **config-only mode** â€” reading (RFID, Barcode, NFC) and checkout are blocked. Only `sendDeviceConfig()` is permitted.
+
+### Pairing
+
+Before connecting via BLE, the AXL device must be paired in Android Bluetooth Settings. Press and hold the button on the AXL device until it appears in the Bluetooth scan list, then pair it. AXL devices are identifiable by the `AXL` prefix in the device name.
+
+### Scanning for devices
+
+```kotlin
+// Get already-paired AXL devices instantly (no scan needed)
+val paired: List<BleDeviceInfo> = sdk.getBondedBleDevices()
+
+// Or scan for nearby devices
+sdk.startBleScan()
+// â†’ onBleDeviceFound(device) fires for each device found
+// â†’ onBleScanComplete(devices) fires when scan ends
+
+sdk.stopBleScan()   // stop scan early
+```
+
+### Connecting
+
+```kotlin
+// Connect to a device by MAC address
+sdk.connectBle("AA:BB:CC:DD:EE:FF")
+
+// The SDK reconfigures to BLE transport internally, then calls connect()
+// Fires the same onConnected() / onDeviceIdentified() / onDeviceConfigLoaded() callbacks as USB
+```
+
+### USB lock state
+
+After `onConnected()` fires over BLE, check whether the device already has a USB host active:
+
+```kotlin
+override fun onConnected() {
+    if (sdk.isUsbLockedByRemote) {
+        // Device is in use via USB â€” config updates only
+        showConfigOnlyMode()
+    }
+}
+
+override fun onUsbLocked() {
+    // Device reported usb:true (USB host connected while BLE was already open)
+    showConfigOnlyMode()
+}
+
+override fun onUsbUnlocked() {
+    // USB host disconnected â€” full access restored
+    showFullAccessMode()
+}
+```
+
+### What changes in config-only mode
+
+| Command | USB | BLE (no USB) | BLE (USB active) |
+|---|---|---|---|
+| `startReading()` | âœ“ | âœ“ | âœ— blocked |
+| `pauseReading()` | âœ“ | âœ“ | âœ— blocked |
+| `stopReading()` | âœ“ | âœ“ | âœ— blocked |
+| `checkoutCompleted()` | âœ“ | âœ“ | âœ— blocked |
+| `startBarcodeReading()` | âœ“ | âœ“ | âœ— blocked |
+| `startNfcReading()` | âœ“ | âœ“ | âœ— blocked |
+| `sendDeviceConfig()` | âœ“ | âœ“ | âœ“ allowed |
+
+Blocked commands dispatch `onError("Device locked by USB host â€” config updates only")`.
+
+---
+
+## 5. Implementing SdkListener
+
+Register with `sdk.setListener(listener)`. All callbacks are delivered on the **main (UI) thread**.
 
 ```kotlin
 class MainActivity : AppCompatActivity(), SdkListener {
 
-    // ── Connection ──────────────────────────────────────────────────────────
+    // â”€â”€ Connection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    override fun onConnected() {
-        // Device handshake complete — enable your UI
-    }
+    override fun onConnected() { /* transport ready â€” safe to call commands */ }
 
-    override fun onDisconnected() {
-        // Transport dropped or disconnect() was called
-    }
+    override fun onDisconnected() { /* transport dropped or disconnect() called */ }
 
     override fun onDeviceIdentified(deviceInfo: DeviceInfo) {
-        // Fired right after onConnected() — has SKU and display name
+        // deviceInfo.deviceName, .deviceType, .sku
     }
 
     override fun onAntennasDetected(antennas: List<Int>) {
-        // Hardware-reported antenna port list
+        // e.g. [1, 2, 3, 4]
     }
 
-    // ── RFID ────────────────────────────────────────────────────────────────
+    override fun onDeviceConfigLoaded(config: JSONObject) {
+        // Device's current hardware config â€” use to pre-populate Settings dialog
+    }
+
+    // â”€â”€ USB lock (BLE transport only) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+    override fun onUsbLocked() {
+        // Device has an active USB host â€” BLE is config-only
+    }
+
+    override fun onUsbUnlocked() {
+        // USB host disconnected â€” full BLE access restored
+    }
+
+    // â”€â”€ RFID â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     override fun onTagDetected(epc: String, antenna: Int) {
-        // Fires many times per second during scanning — deduplicate in your layer
+        // Called many times per second during active scanning
     }
 
     override fun onCommandAcknowledged(cmd: String) {
-        // cmd = "read_start" | "read_pause" | "read_stop" |
-        //       "checkout_complete" | "config" | "update_config" | etc.
+        // cmd = "read_start" | "read_pause" | "read_stop" | "checkout_complete" | etc.
     }
 
-    override fun onReadingPaused() {
-        // Device acknowledged pauseReading()
-    }
+    override fun onReadingPaused() { /* device acknowledged pauseReading() */ }
 
-    override fun onReadingStopped() {
-        // Device acknowledged stopReading()
-    }
+    override fun onReadingStopped() { /* device acknowledged stopReading() */ }
 
     override fun onCheckoutConfirmed(transactionNo: String) {
-        // Checkout accepted by device
+        // All checkout batches ACK'd â€” transaction complete
     }
 
-    override fun onConfigUpdated() {
-        // Device acknowledged sendDeviceConfig() or updateDeviceConfig()
-    }
+    override fun onConfigUpdated() { /* device acknowledged sendDeviceConfig() */ }
 
-    override fun onReaderStatusReceived(isActive: Boolean) {
-        // Response to getReadingStatus()
-    }
+    override fun onReaderStatusReceived(isActive: Boolean) { /* response to getReadingStatus() */ }
 
     override fun onHealthInfoReceived(data: JSONObject) {
-        val cpu   = data.optDouble("cpu_percent")
-        val mem   = data.optDouble("memory_percent")
-        val memMb = data.optInt("memory_used_mb")
-        val total = data.optInt("memory_total_mb")
-        val temp  = data.optString("temperature", "N/A")
+        val cpu  = data.optDouble("cpu_percent")
+        val mem  = data.optDouble("memory_percent")
+        val temp = data.optString("temperature", "N/A")
     }
 
     override fun onDeviceLogReceived(level: String, message: String, timestamp: String) {
-        // Real-time log stream from device firmware (only when device debug is enabled)
+        // Real-time log from device firmware
     }
 
-    // ── Barcode ─────────────────────────────────────────────────────────────
+    // â”€â”€ Barcode â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    override fun onBarcodeTagDetected(data: String) {
-        // A barcode string was scanned
+    override fun onBarcodeTagDetected(data: String) { /* scanned barcode string */ }
+
+    override fun onBarcodeReadingStopped() { }
+
+    // â”€â”€ NFC â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+    override fun onNfcTagDetected(uid: String, antenna: Int) { /* NFC tag UID */ }
+
+    override fun onNfcReadingStopped() { }
+
+    // â”€â”€ BLE scan â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+    override fun onBleDeviceFound(device: BleDeviceInfo) {
+        // device.name, .address, .rssi, .bonded
+        // Only called during startBleScan()
     }
 
-    override fun onBarcodeCommandAcknowledged(cmd: String) {
-        // cmd = "read_start" | "read_stop"
+    override fun onBleScanComplete(devices: List<BleDeviceInfo>) {
+        // Scan ended â€” full result list
     }
 
-    override fun onBarcodeReadingStopped() {
-        // Device acknowledged stopBarcodeReading()
-    }
-
-    // ── NFC ─────────────────────────────────────────────────────────────────
-
-    override fun onNfcTagDetected(uid: String, antenna: Int) {
-        // An NFC tag UID was detected
-    }
-
-    override fun onNfcCommandAcknowledged(cmd: String) {
-        // cmd = "read_start" | "read_stop"
-    }
-
-    override fun onNfcReadingStopped() {
-        // Device acknowledged stopNfcReading()
-    }
-
-    // ── Errors ───────────────────────────────────────────────────────────────
+    // â”€â”€ Errors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     override fun onError(error: String) {
-        // Format: "[E003] COMMAND_TIMEOUT: Command acknowledgment timed out"
-        Log.e(TAG, "SDK error: $error")
+        // Always starts with [Exxx], e.g. "[E003] COMMAND_TIMEOUT: ..."
     }
 }
 ```
 
-> All methods except `onConnected`, `onDisconnected`, `onTagDetected`, `onCommandAcknowledged`, and `onError` have default no-op implementations — override only those your app uses.
+All methods except `onConnected`, `onDisconnected`, `onCommandAcknowledged`, `onTagDetected`, and `onError` have default no-op implementations â€” override only what you need.
 
 ---
 
-## 5. RFID Scanning
+## 6. Device Config Loaded on Connect
 
-### Start and Pause
+The `ack_connection_sync` response from the device includes its current hardware configuration. The SDK fires `onDeviceConfigLoaded(JSONObject)` immediately after `onConnected()` â€” before the user opens any Settings dialog.
 
-```kotlin
-sdk.startReading()   // device begins streaming tag events → onTagDetected()
-sdk.pauseReading()   // device pauses streaming            → onReadingPaused()
-sdk.startReading()   // resume from paused state
+Example config JSON:
+```json
+{
+  "region": "NA",
+  "protocol": "GEN2",
+  "read_on_frequency": 500,
+  "read_off_frequency": 500,
+  "antenna": {
+    "count": 4,
+    "items": [
+      {"id": 1, "active": true,  "read_power": 2400, "write_power": 0},
+      {"id": 2, "active": false, "read_power": 2400, "write_power": 0},
+      {"id": 3, "active": false, "read_power": 2400, "write_power": 0},
+      {"id": 4, "active": false, "read_power": 2400, "write_power": 0}
+    ]
+  },
+  "network_settings": {
+    "lan": false,
+    "wifi": {"ssid": "MyNetwork", "password": "secret", "security": "WPA2", "status": true}
+  },
+  "hop_time": 200,
+  "hop_frequency": [903250]
+}
 ```
 
-### Stop
+Use this to pre-populate your Settings dialog so the operator always sees the actual device state â€” not cached/default values.
+
+---
+
+## 7. Scanning
+
+> **BLE restriction:** Scanning commands are blocked when `sdk.isUsbLockedByRemote` is `true`.
 
 ```kotlin
-sdk.stopReading(epcs)   // send full EPC list to device, return to CONNECTED state
-                         // → onReadingStopped()
+sdk.startReading()            // â†’ onCommandAcknowledged("read_start") + onTagDetected() stream
+sdk.pauseReading()            // â†’ onCommandAcknowledged("read_pause") + onReadingPaused()
+sdk.stopReading(collectedEpcs) // â†’ onCommandAcknowledged("read_stop") + onReadingStopped()
 ```
 
-### Tag Deduplication
-
-`onTagDetected()` can fire hundreds of times per second. Always deduplicate in your own layer:
+`onTagDetected(epc, antenna)` fires for every EPC detected. It can fire hundreds of times per second. Deduplicate in your own layer:
 
 ```kotlin
-private val scannedEpcs = mutableSetOf<String>()
-
 override fun onTagDetected(epc: String, antenna: Int) {
-    if (scannedEpcs.add(epc)) {
-        // First time seeing this EPC in this session
-        runOnUiThread { updateTagList(epc, antenna) }
+    if (scannedEpcs.add(epc)) {   // LinkedHashSet for ordered dedup
+        // process new tag
     }
 }
 ```
 
-### Stop and Reset for a Fresh Scan
+---
+
+## 8. Checkout
+
+> **BLE restriction:** Checkout is blocked when `sdk.isUsbLockedByRemote` is `true`.
+
+Call after the operator confirms the transaction. The SDK automatically batches the EPC list and sends multiple `checkout_complete` commands sequentially if needed.
 
 ```kotlin
-sdk.stopReading(scannedEpcs.toList())
-scannedEpcs.clear()
-// Next startReading() begins a fresh session
+sdk.checkoutCompleted(transactionNo = "#TX847263", epcs = collectedEpcs)
+// â†’ onCommandAcknowledged("checkout_complete") fires per batch
+// â†’ onCheckoutConfirmed("#TX847263") fires once after ALL batches complete
 ```
 
----
+**Batching** protects the STM device from memory pressure on large reads. The default batch size is **15 EPCs per command** (configurable via `SdkConfig.Builder().checkoutBatchSize(n)`).
 
-## 6. Checkout
-
-Call after the operator confirms the transaction. The SDK sends the EPC list and transaction ID to the device and waits for acknowledgment.
-
-```kotlin
-sdk.checkoutCompleted(
-    transactionNo = "#TX001",
-    epcs = scannedEpcs.toList()
-)
-// → fires onCheckoutConfirmed("#TX001") when the device acknowledges
+Example â€” 45 EPCs, batch size 15:
+```
+Batch 1/3 â†’ checkout_complete [EPC  1â€“15]  â†’ ack_checkout_complete âœ“
+Batch 2/3 â†’ checkout_complete [EPC 16â€“30]  â†’ ack_checkout_complete âœ“
+Batch 3/3 â†’ checkout_complete [EPC 31â€“45]  â†’ ack_checkout_complete âœ“
+â†’ onCheckoutConfirmed("#TX847263")  â† fires once
 ```
 
-**Validation rules:**
-- `transactionNo` must be non-null and non-empty — fires `onError(E007)` otherwise
-- `epcs` must be non-empty — fires `onError(E007)` otherwise
+If any batch times out, `onError(E003)` fires and remaining batches are cancelled.
 
-The SDK enters `CHECKOUT_PENDING` mode while waiting for the device ACK and returns to `CONNECTED` once confirmed.
-
----
-
-## 7. Device Configuration
-
-Use `RfidDeviceConfig.Builder` to build the configuration, then send it to the device.
-
-### Which method to use
-
-| Device | Method |
-|---|---|
-| **AXL FLAT** (`DeviceInfo.DEVICE_TYPE_AXL_FLAT`) | `sdk.sendDeviceConfig(config)` — sends a lean `config` command |
-| **All other devices** | `sdk.updateDeviceConfig(config)` — sends the full `update_config` command |
-
-Both fire `onConfigUpdated()` on success.
+Validation:
+- `transactionNo` must be non-null and non-empty â†’ `onError(E007)` otherwise
+- `epcs` must be non-empty â†’ `onError(E007)` otherwise
 
 ---
 
-### Building the Configuration
+## 9. Updating Device Config
+
+Push hardware settings to the device at runtime. **Available over both USB and BLE.**
 
 ```kotlin
 val config = RfidDeviceConfig.Builder()
-    .region("ID")                    // RFID frequency region
-    .protocol("GEN2")                // Air protocol
-    .readPower(1800)                 // Global read power in mdBm
-    .antenna(1, true,  1800)         // (port, active, readPowerMdBm)
-    .antenna(2, true,  1800)
-    .antenna(3, false, 1800)
-    .antenna(4, false, 1800)
-    .readOnFrequency(500)            // ms: 0, 500, or 1000
-    .readOffFrequency(500)           // ms: 0, 500, or 1000
-    .hopTime(200)                    // ms
-    .hopFrequencyKhz("903250")       // comma-separated kHz
-    .networkLan()                    // wired LAN
+    .region("ID")                        // RFID region code
+    .protocol("GEN2")
+    .antenna(1, true,  2400)             // (port, active, readPower mdBm)
+    .antenna(2, false, 2400)
+    .antenna(3, false, 2400)
+    .antenna(4, false, 2400)
+    .readOnFrequency(500)                // ms; accepted: 0, 500, 1000
+    .readOffFrequency(500)
+    .hopTime(200)
+    .hopFrequencyKhz("903250")
+    .networkWifi("MySSID", "WPA2", "password")   // or .networkLan()
     .build()
 
-// AXL FLAT (DeviceInfo.DEVICE_TYPE_AXL_FLAT)
 sdk.sendDeviceConfig(config)
-
-// Other devices
-sdk.updateDeviceConfig(config)
+// â†’ fires onConfigUpdated() on success
 ```
 
-### Network Options
+### Network options
 
 ```kotlin
-// Wired LAN (default)
+// LAN
 .networkLan()
 
-// Wi-Fi
+// WiFi
 .networkWifi(
     ssid     = "MyNetwork",
-    security = "WPA2",      // "WPA2", "WPA3", "None", or ""
+    security = "WPA2",        // "WPA2", "WPA3", "None", or ""
     password = "secret"
 )
 ```
 
-### Supported Region Codes
+When `network_settings.wifi.status = true` and `lan = false` â†’ device uses WiFi.  
+When `lan = true` â†’ device uses LAN; WiFi is disabled.
 
-`NA` `IN` `JP3` `PRC` `EU3` `EU4` `KR2` `AU` `NZ` `IS` `MY` `ID` `PH` `TW` `RU` `SG` `VN` `TH` `HK` `open`
+### Region codes
 
-### Adding Custom Fields
-
-```kotlin
-RfidDeviceConfig.Builder()
-    .put("future_setting", true)
-    .build()
-```
-
----
-
-## 8. Barcode Reading
-
-```kotlin
-sdk.startBarcodeReading()
-// → each scan fires onBarcodeTagDetected(data)
-
-sdk.stopBarcodeReading()
-// → fires onBarcodeReadingStopped()
-```
-
-```kotlin
-override fun onBarcodeTagDetected(data: String) {
-    Log.i(TAG, "Barcode: $data")
-}
-```
-
----
-
-## 9. NFC Reading
-
-```kotlin
-sdk.startNfcReading()
-// → each tap fires onNfcTagDetected(uid, antenna)
-
-sdk.stopNfcReading()
-// → fires onNfcReadingStopped()
-```
-
-```kotlin
-override fun onNfcTagDetected(uid: String, antenna: Int) {
-    Log.i(TAG, "NFC UID: $uid on antenna $antenna")
-}
-```
+`NA`, `IN`, `JP3`, `PRC`, `EU3`, `EU4`, `KR2`, `AU`, `NZ`, `IS`, `MY`, `ID`, `PH`, `TW`, `RU`, `SG`, `VN`, `TH`, `HK`, `open`
 
 ---
 
 ## 10. Health & Status
 
 ```kotlin
-sdk.getHealthInfo()       // → onHealthInfoReceived(JSONObject)
-sdk.getReadingStatus()    // → onReaderStatusReceived(Boolean)
+sdk.getHealthInfo()       // â†’ onHealthInfoReceived(JSONObject)
+sdk.getReadingStatus()    // â†’ onReaderStatusReceived(Boolean)
 ```
 
-Fields in `onHealthInfoReceived`:
+`onHealthInfoReceived` delivers:
 
 | Field | Type | Description |
 |---|---|---|
-| `cpu_percent` | Double | CPU usage 0–100 |
-| `memory_percent` | Double | RAM usage 0–100 |
+| `cpu_percent` | Double | CPU usage 0â€“100 |
+| `memory_percent` | Double | RAM usage 0â€“100 |
 | `memory_used_mb` | Int | Used RAM in MB |
 | `memory_total_mb` | Int | Total RAM in MB |
-| `temperature` | String | CPU temperature — may be absent on some hardware |
+| `temperature` | String | CPU temperature (absent on some hardware) |
 
 ---
 
@@ -472,85 +509,68 @@ Fields in `onHealthInfoReceived`:
 
 ```kotlin
 sdk.disconnect()
-// → onDisconnected() always fires, even if the device is unreachable
 ```
 
-To change transport settings at runtime, use `reconfigure()` — transport type and baud rate cannot be changed on a live connection:
+Sends a `disconnect_sync` handshake to the device, waits for acknowledgment, then tears down the transport. If the device is unreachable, the disconnect still completes. `onDisconnected()` always fires.
+
+To change the transport at runtime (e.g. switch USB â†’ BLE):
 
 ```kotlin
-val newConfig = SdkConfig.Builder()
-    .baudRate(9600)
-    .build()
+sdk.reconfigure(newConfig)   // tears down existing connection
+sdk.connect()                // then reconnect
+```
 
-sdk.reconfigure(newConfig)  // tears down existing connection
-sdk.connect()               // reconnect with new config
+Or use the convenience method for BLE:
+
+```kotlin
+sdk.connectBle("AA:BB:CC:DD:EE:FF")   // reconfigure + connect in one call
 ```
 
 ---
 
 ## 12. SDK Modes
 
-Query the current mode at any time with `sdk.currentMode`.
+Query with `sdk.currentMode` at any time.
 
 | Mode | Meaning |
 |---|---|
-| `IDLE` | Initialized, not yet connected |
-| `CONNECTED` | Transport open, handshake complete — ready for commands |
-| `SCANNING` | `startReading()` acknowledged, device is streaming EPCs |
-| `PAUSED` | `pauseReading()` acknowledged, device is idle but connected |
-| `CHECKOUT_PENDING` | `checkoutCompleted()` sent, waiting for device ACK |
-| `DISCONNECTED` | Session cleanly closed via `disconnect()` |
+| `IDLE` | Initialized, not connected |
+| `CONNECTED` | Transport open, handshake complete â€” ready for commands |
+| `SCANNING` | `startReading()` sent, device streaming EPCs |
+| `PAUSED` | `pauseReading()` sent, device connected but not streaming |
+| `CHECKOUT_PENDING` | `checkoutCompleted()` sent, waiting for all batch ACKs |
+| `DISCONNECTED` | Session cleanly closed |
 
 ---
 
 ## 13. Error Codes
 
-All errors arrive in `onError(String)`. The string always starts with `[Exxx]`.
+All errors arrive via `onError(String error)`. The string always starts with `[Exxx]`.
 
 | Code | Name | Cause |
 |---|---|---|
-| `E001` | `DEVICE_NOT_CONNECTED` | A command was called before `connect()` succeeded |
+| `E001` | `DEVICE_NOT_CONNECTED` | Command called before `connect()` succeeds |
 | `E002` | `USB_PERMISSION_DENIED` | User denied the USB permission dialog |
 | `E003` | `COMMAND_TIMEOUT` | Device did not ACK within `commandTimeoutMs` |
-| `E004` | `INVALID_JSON` | Device sent a message that could not be parsed |
-| `E005` | `UNSUPPORTED_COMMAND` | Device sent an unrecognized command |
-| `E006` | `SDK_NOT_INITIALIZED` | A method was called before `initialize()` |
-| `E007` | `INVALID_PAYLOAD` | Required field missing (e.g. empty EPC list or transaction ID) |
+| `E004` | `INVALID_JSON` | Device sent a message that is not valid JSON |
+| `E005` | `UNSUPPORTED_COMMAND` | Device sent an unrecognized `cmd` value |
+| `E006` | `SDK_NOT_INITIALIZED` | `initialize()` was never called |
+| `E007` | `INVALID_PAYLOAD` | Required field missing (e.g. empty EPC list) |
 
 ---
 
 ## 14. USB Auto-Launch
 
-With the manifest setup from [§1](#1-setup), Android automatically launches the POS app when the RFID device is plugged in and the user selects the app from the prompt.
+With the manifest setup from Â§1, Android automatically launches the POS app when the RFID device is plugged in via USB. The `USB_DEVICE_ATTACHED` intent is delivered to `MainActivity` and a USB permission dialog is shown automatically.
 
-Handle the intent in `onNewIntent` to avoid double-connect when the app is already running:
-
-```kotlin
-override fun onCreate(savedInstanceState: Bundle?) {
-    super.onCreate(savedInstanceState)
-    sdk.initialize(this)
-    sdk.setListener(this)
-    handleUsbIntent(intent)
-}
-
-override fun onNewIntent(intent: Intent) {
-    super.onNewIntent(intent)
-    handleUsbIntent(intent)
-}
-
-private fun handleUsbIntent(intent: Intent) {
-    if (intent.action == UsbManager.ACTION_USB_DEVICE_ATTACHED) {
-        if (!sdk.isConnected) sdk.connect()
-    }
-}
-```
-
-To resync when the app returns to the foreground after being backgrounded:
+To check current connection state on resume:
 
 ```kotlin
 override fun onResume() {
     super.onResume()
-    if (!sdk.isConnected) sdk.connect()
+    if (!sdk.isConnected) {
+        sdk.connect()
+    }
 }
 ```
 
@@ -558,73 +578,12 @@ override fun onResume() {
 
 ## 15. Settings Apply Rules
 
-Not all settings take effect the same way. Use this table when the user saves settings in your app.
+| Setting | How to apply | Transport |
+|---|---|---|
+| **Baudrate** | `sdk.reconfigure(newConfig)` then `sdk.connect()` â€” cannot change on live connection | USB only |
+| **Region, Protocol, Antennas, Read Power** | `sdk.sendDeviceConfig(config)` â€” safe while `CONNECTED` or `PAUSED` | USB + BLE |
+| **WiFi / LAN** | Included in `sendDeviceConfig(config)` via `.networkWifi()` or `.networkLan()` | USB + BLE |
+| **Checkout Batch Size** | Set in `SdkConfig.Builder().checkoutBatchSize(n)` before `initialize()`, or via Settings dialog | SDK only |
 
-| Setting changed | How to apply |
-|---|---|
-| **Baud rate** | Call `sdk.reconfigure(newSdkConfig)` then `sdk.connect()` — cannot change on a live connection |
-| **Region, Protocol, Antennas, Read Power, Frequencies** | Call `sdk.sendDeviceConfig(config)` (AXL FLAT) or `sdk.updateDeviceConfig(config)` (other devices) — safe while `CONNECTED` or `PAUSED` |
-| **Wi-Fi credentials / LAN toggle** | Pass via `.networkWifi()` or `.networkLan()` inside `sendDeviceConfig()` or `updateDeviceConfig()` |
-| **Debug logging** | Call `sdk.setDebugLogging(enabled)` — takes effect immediately, no reconnect needed |
+> When `SCANNING` is active, defer `sendDeviceConfig()` until `stopReading()` completes.
 
----
-
-## Complete Example
-
-```kotlin
-class MainActivity : AppCompatActivity(), SdkListener {
-
-    private val sdk = Sdk.getInstance()
-    private val scannedEpcs = mutableSetOf<String>()
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
-
-        sdk.initialize(this)
-        sdk.setListener(this)
-
-        btnConnect.setOnClickListener { sdk.connect() }
-        btnStart.setOnClickListener   { sdk.startReading() }
-        btnPause.setOnClickListener   { sdk.pauseReading() }
-        btnStop.setOnClickListener    {
-            sdk.stopReading(scannedEpcs.toList())
-            scannedEpcs.clear()
-        }
-        btnCheckout.setOnClickListener {
-            sdk.checkoutCompleted("#TX001", scannedEpcs.toList())
-        }
-    }
-
-    // Connection
-    override fun onConnected()                              { /* enable UI */ }
-    override fun onDisconnected()                           { /* reset UI */ }
-    override fun onDeviceIdentified(d: DeviceInfo)          { Log.i(TAG, d.deviceName) }
-    override fun onAntennasDetected(antennas: List<Int>)    { /* update antenna UI */ }
-
-    // RFID
-    override fun onTagDetected(epc: String, antenna: Int) {
-        if (scannedEpcs.add(epc)) updateTagList(epc)
-    }
-    override fun onCommandAcknowledged(cmd: String)         { Log.i(TAG, "ACK: $cmd") }
-    override fun onReadingPaused()                          { /* update button state */ }
-    override fun onReadingStopped()                         { /* update button state */ }
-    override fun onCheckoutConfirmed(txnNo: String)         { showSuccess(txnNo) }
-    override fun onConfigUpdated()                          { Log.i(TAG, "Config applied") }
-
-    // Errors
-    override fun onError(error: String)                     { Log.e(TAG, error) }
-}
-```
-
----
-
-## Version Check
-
-```kotlin
-Log.i(TAG, "axl SDK ${SdkVersion.NAME}")   // "26.2.1"
-
-if (SdkVersion.CODE >= 260201) {
-    // features added in 26.2.1
-}
-```
