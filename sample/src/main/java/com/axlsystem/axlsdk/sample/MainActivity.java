@@ -244,9 +244,8 @@ public class MainActivity extends AppCompatActivity implements SdkListener {
 
     @Override
     public void onHealthInfoReceived(JSONObject data) {
-        double cpu = data.optDouble("cpu_percent", -1);
-        double mem = data.optDouble("memory_percent", -1);
-        setStatus(String.format("Health — CPU: %.1f%%  MEM: %.1f%%", cpu, mem));
+        int temp = data.optInt("module_temperature", -1);
+        setStatus("Health — Module temp: " + temp + "°C");
     }
 
     @Override

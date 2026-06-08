@@ -1,6 +1,6 @@
 # axl SDK — Features Overview
 
-**Version 26.2.2**  
+**Version 26.2.3**  
 Android SDK for AXL RFID POS hardware integration over USB and Bluetooth LE
 
 ---
@@ -37,17 +37,15 @@ Connect to an AXL device over Bluetooth LE to push configuration updates remotel
 - Scan for nearby AXL devices using `startBleScan()`
 - Already-paired devices appear instantly via `getBondedBleDevices()`
 - Connect to a selected device with `connectBle(macAddress)`
-- On connect, the device reports its USB status (`usb:true` = USB host active)
-- If `usb:true` → SDK fires `onUsbLocked()` — only `sendDeviceConfig()` is permitted
-- When the USB tablet disconnects, the device broadcasts `usb_state_changed` → SDK fires `onUsbUnlocked()` — full access restored
-
-**BLE uses Nordic UART Service (NUS)** over GATT — the same JSON command protocol as USB, so all device configuration commands work identically over both transports.
+- On connect, the SDK checks whether a USB host is already active on the device
+- If a USB host is active → SDK fires `onUsbLocked()` — only `sendDeviceConfig()` is permitted
+- When the USB tablet disconnects, the SDK detects this automatically and fires `onUsbUnlocked()` — full access restored
 
 ---
 
 ### 3. Device Configuration on Connect
 
-When the device acknowledges the connection handshake (`ack_connection_sync`), it returns its **current hardware configuration** in the response. The SDK fires `onDeviceConfigLoaded(JSONObject config)` immediately after `onConnected()`.
+On every successful connection the SDK fires `onDeviceConfigLoaded(JSONObject config)` immediately after `onConnected()` with the device's current hardware configuration.
 
 This means:
 - Your Settings dialog can be pre-populated with live device values automatically
@@ -77,7 +75,7 @@ When the customer is ready to pay, call `checkoutCompleted(transactionId, tags)`
 **Batching behaviour:**
 - Default batch size: **15 EPCs per `checkout_complete` command**
 - If total EPCs ≤ batch size → single command (no change in behaviour)
-- If total EPCs > batch size → multiple commands sent sequentially, each waiting for `ack_checkout_complete`
+- If total EPCs > batch size → multiple commands sent sequentially, each waiting for device acknowledgement
 - `onCheckoutConfirmed(txnId)` fires **once** after all batches complete — not per batch
 - Configurable via `SdkConfig.Builder().checkoutBatchSize(n)` — set to `0` to disable batching
 
@@ -130,9 +128,7 @@ The device acknowledges config updates with `onConfigUpdated()`.
 
 Call `getHealthInfo()` to request a real-time health report from the device. The response (`onHealthInfoReceived`) contains:
 
-- CPU usage (%)
-- Memory usage (% and MB)
-- Device temperature (where available)
+- Module temperature (°C)
 
 Useful for diagnostics and support.
 

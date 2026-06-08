@@ -1,6 +1,6 @@
 ﻿# AXL RFID SDK â€” POS Integration Guide
 
-SDK version: **26.2.2**
+SDK version: **26.2.3**
 
 ---
 
@@ -150,11 +150,10 @@ sdk.initialize(context, config)
 sdk.connect()
 ```
 
-Internally this:
+On call this:
 1. Opens the USB serial transport
-2. Sends `{"type":"SYS","cmd":"connection_sync"}` to the device
-3. Waits for `ack_connection_sync` response (device info + current config)
-4. Fires `onConnected()` on success, or `onError()` on timeout/failure
+2. Performs a device handshake
+3. Fires `onConnected()` on success, or `onError()` on timeout/failure
 
 After `onConnected()` the SDK also fires:
 - `onDeviceIdentified(DeviceInfo)` â€” device name, SKU, type
@@ -227,7 +226,7 @@ override fun onConnected() {
 }
 
 override fun onUsbLocked() {
-    // Device reported usb:true (USB host connected while BLE was already open)
+    // A USB host connected to the device while BLE was active
     showConfigOnlyMode()
 }
 
@@ -311,9 +310,7 @@ class MainActivity : AppCompatActivity(), SdkListener {
     override fun onReaderStatusReceived(isActive: Boolean) { /* response to getReadingStatus() */ }
 
     override fun onHealthInfoReceived(data: JSONObject) {
-        val cpu  = data.optDouble("cpu_percent")
-        val mem  = data.optDouble("memory_percent")
-        val temp = data.optString("temperature", "N/A")
+        val temp = data.optInt("module_temperature", -1)
     }
 
     override fun onDeviceLogReceived(level: String, message: String, timestamp: String) {
@@ -357,7 +354,7 @@ All methods except `onConnected`, `onDisconnected`, `onCommandAcknowledged`, `on
 
 ## 6. Device Config Loaded on Connect
 
-The `ack_connection_sync` response from the device includes its current hardware configuration. The SDK fires `onDeviceConfigLoaded(JSONObject)` immediately after `onConnected()` â€” before the user opens any Settings dialog.
+On every successful connection the SDK fires `onDeviceConfigLoaded(JSONObject)` immediately after `onConnected()` with the device's current hardware configuration — before the user opens any Settings dialog.
 
 Example config JSON:
 ```json
@@ -426,9 +423,9 @@ sdk.checkoutCompleted(transactionNo = "#TX847263", epcs = collectedEpcs)
 
 Example â€” 45 EPCs, batch size 15:
 ```
-Batch 1/3 â†’ checkout_complete [EPC  1â€“15]  â†’ ack_checkout_complete âœ“
-Batch 2/3 â†’ checkout_complete [EPC 16â€“30]  â†’ ack_checkout_complete âœ“
-Batch 3/3 â†’ checkout_complete [EPC 31â€“45]  â†’ ack_checkout_complete âœ“
+Batch 1/3 → onCommandAcknowledged("checkout_complete") ✓
+Batch 2/3 → onCommandAcknowledged("checkout_complete") ✓
+Batch 3/3 → onCommandAcknowledged("checkout_complete") ✓
 â†’ onCheckoutConfirmed("#TX847263")  â† fires once
 ```
 
@@ -497,11 +494,7 @@ sdk.getReadingStatus()    // â†’ onReaderStatusReceived(Boolean)
 
 | Field | Type | Description |
 |---|---|---|
-| `cpu_percent` | Double | CPU usage 0â€“100 |
-| `memory_percent` | Double | RAM usage 0â€“100 |
-| `memory_used_mb` | Int | Used RAM in MB |
-| `memory_total_mb` | Int | Total RAM in MB |
-| `temperature` | String | CPU temperature (absent on some hardware) |
+| `module_temperature` | Int | RFID module temperature in °C |
 
 ---
 

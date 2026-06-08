@@ -6,6 +6,22 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [26.2.3] — 2026-06-08
+
+### Changed
+- `ack_connection_sync` response key renamed: `config` → `config_data` for the device hardware configuration block
+- Health info response field changed: `onHealthInfoReceived` now receives `module_temperature` (Integer, °C) only — previous fields `cpu_percent`, `memory_percent`, `memory_used_mb`, `memory_total_mb`, and `temperature` are no longer returned by current device firmware
+
+### Fixed
+- **BLE reconnect**: `negotiatedMtu` is now reset to `DEFAULT_MTU` at the start of each `connect()` call — prevents oversized chunks being sent in a new session that reused a stale MTU value from a prior connection
+- **BLE MTU overflow**: `IllegalArgumentException` thrown by `gatt.writeCharacteristic()` on API 33+ (when chunk size exceeds OS-tracked MTU limit) is now caught in `writeChunk()`; MTU resets to default on catch so the session recovers rather than hanging
+- **Duplicate checkout callback**: `suppressCheckoutConfirmed` is now always set to `true` before the batch loop, eliminating a double `onCheckoutConfirmed` dispatch that occurred for single-batch checkouts (previously the flag was only set when batch count > 1)
+
+### Known Limitations
+- USB lock detection over BLE (`parseUsbLockState`) is temporarily disabled pending a firmware update that correctly distinguishes USB host connection from USB power-only. `onUsbLocked()` / `onUsbUnlocked()` will not fire until the firmware update is available.
+
+---
+
 ## [26.2.2] — 2026-06-04
 
 ### Added

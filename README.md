@@ -2,7 +2,7 @@
 
 Android SDK for integrating AXL RFID POS devices over USB or Bluetooth.
 
-**Version:** 26.2.2 &nbsp;·&nbsp; **Min SDK:** Android 8.0 (API 26) &nbsp;·&nbsp; **Language:** Java 11 &nbsp;·&nbsp; **License:** Apache 2.0
+**Version:** 26.2.3 &nbsp;·&nbsp; **Min SDK:** Android 8.0 (API 26) &nbsp;·&nbsp; **Language:** Java 11 &nbsp;·&nbsp; **License:** Apache 2.0
 
 ---
 
@@ -262,7 +262,7 @@ All callbacks are dispatched on the **main (UI) thread**.
 | `onCheckoutConfirmed(txnId)` | All checkout batches acknowledged — transaction complete |
 | `onConfigUpdated()` | Device config update acknowledged |
 | `onReaderStatusReceived(boolean)` | Reader active/inactive status response |
-| `onHealthInfoReceived(JSONObject)` | Device CPU, memory, and temperature metrics |
+| `onHealthInfoReceived(JSONObject)` | Device module temperature (`module_temperature`, Integer °C) |
 | `onDeviceLogReceived(level, msg, ts)` | Log entry streamed from device firmware |
 
 ### Barcode
@@ -345,44 +345,48 @@ sdk.sendDeviceConfig(config);   // allowed over both USB and BLE
 
 ---
 
-## Connection Handshake Protocol
+## Device Config on Connect
 
-On every successful transport connection the SDK exchanges a handshake with the device.
+After every successful connection the SDK fires `onDeviceConfigLoaded(JSONObject)` with the device's current hardware configuration. Use this to pre-populate your Settings dialog without a separate fetch command.
 
-**Sent by SDK on connect:**
-```json
-{"type":"SYS","cmd":"connection_sync"}
-```
+The config object shape:
 
-**Device response:**
 ```json
 {
-  "type": "SYS",
-  "cmd": "ack_connection_sync",
-  "device": "AXL FLAT STM",
-  "sku": "A120IAB",
-  "device_type": "AXL_FLAT",
-  "usb": true,
-  "config": { "region": "NA", "protocol": "GEN2", ... }
+  "region": "NA",
+  "protocol": "GEN2",
+  "read_on_frequency": 500,
+  "read_off_frequency": 500,
+  "antenna": {
+    "count": 4,
+    "items": [
+      {"id": 1, "active": true,  "read_power": 2400, "write_power": 0},
+      {"id": 2, "active": false, "read_power": 2400, "write_power": 0},
+      {"id": 3, "active": false, "read_power": 2400, "write_power": 0},
+      {"id": 4, "active": false, "read_power": 2400, "write_power": 0}
+    ]
+  },
+  "network_settings": {
+    "lan": false,
+    "wifi": {"ssid": "MyNetwork", "password": "secret", "security": "WPA2", "status": true}
+  },
+  "hop_time": 200,
+  "hop_frequency": [903250]
 }
 ```
-
-- `usb: true` — A USB host is already active on the device. The SDK enters **config-only mode** and fires `onUsbLocked()`. Reading and checkout are blocked until the USB host disconnects.
-- `usb` absent — No USB host active; full access granted.
-- `config` — Device's current hardware configuration. Fires `onDeviceConfigLoaded(config)` immediately after `onConnected()`.
 
 ---
 
 ## Bluetooth — Config-Only Mode
 
-When connected via BLE the SDK checks the `usb` field in `ack_connection_sync`:
+When connected via BLE the SDK checks whether the device already has a USB host active:
 
-| Scenario | `usb` field | SDK mode | Allowed commands |
-|---|---|---|---|
-| BLE only (no USB tablet) | absent | Full access | All commands |
-| BLE + USB tablet connected | `true` | Config-only | `sendDeviceConfig()` only |
+| Scenario | SDK mode | Allowed commands |
+|---|---|---|
+| BLE only (no USB tablet) | Full access | All commands |
+| BLE + USB tablet connected | Config-only | `sendDeviceConfig()` only |
 
-When the USB tablet disconnects, the device broadcasts `usb_state_changed` to all BLE clients. The SDK receives this and fires `onUsbUnlocked()`, restoring full access.
+When the USB tablet disconnects, the SDK detects this automatically and fires `onUsbUnlocked()`, restoring full access.
 
 Attempting blocked commands while USB-locked dispatches `onError("Device locked by USB host")`.
 
