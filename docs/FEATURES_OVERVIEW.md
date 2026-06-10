@@ -1,6 +1,6 @@
 # axl SDK — Features Overview
 
-**Version 26.2.3**  
+**Version 26.2.4**  
 Android SDK for AXL RFID POS hardware integration over USB and Bluetooth LE
 
 ---
@@ -195,7 +195,7 @@ All errors surface through a single `onError(message)` callback with a human-rea
 
 | Requirement | Value |
 |---|---|
-| Android version | 8.0 and above (API 26+) |
+| Android version | 5.0 and above (API 21+) |
 | Language | Java 11 |
 | USB connection | USB OTG (USB-A to USB-C or Micro-USB) |
 | BLE connection | Bluetooth 4.0+ (optional) |

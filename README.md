@@ -2,7 +2,7 @@
 
 Android SDK for integrating AXL RFID POS devices over USB or Bluetooth.
 
-**Version:** 26.2.3 &nbsp;·&nbsp; **Min SDK:** Android 8.0 (API 26) &nbsp;·&nbsp; **Language:** Java 11 &nbsp;·&nbsp; **License:** Apache 2.0
+**Version:** 26.2.4 &nbsp;·&nbsp; **Min SDK:** Android 5.0 (API 21) &nbsp;·&nbsp; **Language:** Java 11 &nbsp;·&nbsp; **License:** Apache 2.0
 
 ---
 
@@ -16,7 +16,7 @@ axl SDK provides a clean Android API to communicate with AXL RFID hardware over 
 
 ## Requirements
 
-- Android 8.0+ (API 26)
+- Android 5.0+ (API 21)
 - USB OTG support on the Android device
 - AXL RFID hardware (AXL FLAT, AXL BIN, or AXL GATE)
 - Bluetooth 4.0+ for BLE connectivity (optional)
@@ -26,6 +26,10 @@ axl SDK provides a clean Android API to communicate with AXL RFID hardware over 
 ## Installation
 
 Copy `axlsdk.aar` into `app/libs/`.
+
+Download `axlsdk.aar` from the [latest release](https://github.com/axl-systems/sdk-android/releases/latest)
+and copy it into `app/libs/`.
+
 
 > The SDK depends on `usb-serial-for-android` which is hosted on JitPack. Add the JitPack repository and declare both dependencies as shown below.
 

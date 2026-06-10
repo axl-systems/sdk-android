@@ -6,6 +6,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [26.2.4] — 2026-06-10
+
+### Changed
+- **Min SDK lowered from API 26 to API 21** (Android 5.0 Lollipop) — the SDK now supports a wider range of Android devices
+- Removed `java.time.Instant` usage in `getCurrentTimestamp()` — replaced with `SimpleDateFormat` which works on all supported API levels without requiring core library desugaring
+
+---
+
 ## [26.2.3] — 2026-06-08
 
 ### Changed
@@ -25,24 +33,6 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ## [26.2.2] — 2026-06-04
 
 ### Added
-- Bluetooth LE transport — configuration updates only (see full feature list in 26.3.0 below)
-- `SdkConfig.checkoutBatchSize` — default 15 EPCs per `checkout_complete` batch
-- `onDeviceConfigLoaded(JSONObject)` — device's current config received on connect
-- `onUsbLocked()` / `onUsbUnlocked()` — BLE config-only mode callbacks
-- `DeviceInfo.getSku()` and `DeviceInfo.SKU_AXL_FLAT = "A120IAB"`
-- `Sdk.isUsbLockedByRemote()`, `Sdk.isBluetoothTransport()`
-- BLE scan: `startBleScan()`, `stopBleScan()`, `getBondedBleDevices()`, `connectBle()`
-
-### Changed
-- `usb-serial-for-android` updated to `3.9.0`
-- All read/checkout commands blocked when USB-locked via BLE
-
----
-
-## [26.3.0] — 2026-06-04
-
-### Added
-
 **Bluetooth LE transport**
 - `TransportType.BLUETOOTH` — new transport option alongside existing `USB`
 - `BluetoothLeTransport` — Nordic UART Service (NUS) GATT transport using the same JSON protocol as USB
@@ -53,6 +43,12 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - `BleDeviceInfo` model — name, address, RSSI, bonded state
 - `SdkListener.onBleDeviceFound(BleDeviceInfo)` — fires per device during scan
 - `SdkListener.onBleScanComplete(List<BleDeviceInfo>)` — fires when scan ends
+- `SdkConfig.checkoutBatchSize` — default 15 EPCs per `checkout_complete` batch
+- `onDeviceConfigLoaded(JSONObject)` — device's current config received on connect
+- `onUsbLocked()` / `onUsbUnlocked()` — BLE config-only mode callbacks
+- `DeviceInfo.getSku()` and `DeviceInfo.SKU_AXL_FLAT = "A120IAB"`
+- `Sdk.isUsbLockedByRemote()`, `Sdk.isBluetoothTransport()`
+- BLE scan: `startBleScan()`, `stopBleScan()`, `getBondedBleDevices()`, `connectBle()`
 
 **USB lock / config-only mode**
 - `Sdk.isUsbLockedByRemote()` — `true` when BLE-connected and device reports USB host active
@@ -79,7 +75,8 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - New constructor `DeviceInfo(name, deviceType, sku)` — existing 2-arg constructor unchanged
 
 ### Changed
-
+- `usb-serial-for-android` updated to `3.9.0`
+- All read/checkout commands blocked when USB-locked via BLE
 - `ack_connection_sync` response now parsed for `sku`, `usb`, and `config` fields in addition to existing `device` and `device_type`
 - `connection_sync` and `disconnect_sync` handshake commands unchanged in wire format — firmware update required to enable `usb:true` signalling
 
@@ -87,7 +84,6 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 - `usb-serial-for-android` updated from `3.8.1` to `3.9.0`
 
----
 
 ## [26.2.1] — 2026-05-29
 

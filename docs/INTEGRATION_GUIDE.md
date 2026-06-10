@@ -1,6 +1,6 @@
-﻿# AXL RFID SDK â€” POS Integration Guide
+﻿# AXL RFID SDK - POS Integration Guide
 
-SDK version: **26.2.3**
+SDK version: **26.2.4**
 
 ---
 
@@ -95,7 +95,7 @@ dependencies {
 </activity>
 ```
 
-`res/xml/device_filter.xml` (STM32 CDC â€” default VID/PID):
+`res/xml/device_filter.xml` (STM32 CDC - default VID/PID):
 
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -140,7 +140,7 @@ sdk.initialize(context, config)
 | `debugLogging` | `false` | Enable in development; disable in production |
 | `checkoutBatchSize` | `15` | EPCs per `checkout_complete`; `0` = no batching |
 
-> `initialize()` is idempotent â€” duplicate calls are silently ignored.
+> `initialize()` is idempotent - duplicate calls are silently ignored.
 
 ---
 
@@ -156,13 +156,13 @@ On call this:
 3. Fires `onConnected()` on success, or `onError()` on timeout/failure
 
 After `onConnected()` the SDK also fires:
-- `onDeviceIdentified(DeviceInfo)` â€” device name, SKU, type
-- `onAntennasDetected(List<Int>)` â€” hardware antenna port numbers
-- `onDeviceConfigLoaded(JSONObject)` â€” device's current hardware configuration
+- `onDeviceIdentified(DeviceInfo)` - device name, SKU, type
+- `onAntennasDetected(List<Int>)` - hardware antenna port numbers
+- `onDeviceConfigLoaded(JSONObject)` - device's current hardware configuration
 
 ```kotlin
 override fun onConnected() {
-    // USB full access â€” read, checkout, and config all available
+    // USB full access - read, checkout, and config all available
 }
 
 override fun onDeviceIdentified(deviceInfo: DeviceInfo) {
@@ -183,7 +183,7 @@ override fun onDeviceConfigLoaded(config: JSONObject) {
 
 ## 4. Connecting via Bluetooth
 
-> **Important:** Bluetooth connectivity is for **configuration updates only**. When the AXL device has an active USB host (another tablet connected via USB cable), the BLE-connected tablet operates in **config-only mode** â€” reading (RFID, Barcode, NFC) and checkout are blocked. Only `sendDeviceConfig()` is permitted.
+> **Important:** Bluetooth connectivity is for **configuration updates only**. When the AXL device has an active USB host (another tablet connected via USB cable), the BLE-connected tablet operates in **config-only mode** - reading (RFID, Barcode, NFC) and checkout are blocked. Only `sendDeviceConfig()` is permitted.
 
 ### Pairing
 
@@ -220,7 +220,7 @@ After `onConnected()` fires over BLE, check whether the device already has a USB
 ```kotlin
 override fun onConnected() {
     if (sdk.isUsbLockedByRemote) {
-        // Device is in use via USB â€” config updates only
+        // Device is in use via USB - config updates only
         showConfigOnlyMode()
     }
 }
@@ -231,7 +231,7 @@ override fun onUsbLocked() {
 }
 
 override fun onUsbUnlocked() {
-    // USB host disconnected â€” full access restored
+    // USB host disconnected - full access restored
     showFullAccessMode()
 }
 ```
@@ -248,7 +248,7 @@ override fun onUsbUnlocked() {
 | `startNfcReading()` | âœ“ | âœ“ | âœ— blocked |
 | `sendDeviceConfig()` | âœ“ | âœ“ | âœ“ allowed |
 
-Blocked commands dispatch `onError("Device locked by USB host â€” config updates only")`.
+Blocked commands dispatch `onError("Device locked by USB host - config updates only")`.
 
 ---
 
@@ -261,7 +261,7 @@ class MainActivity : AppCompatActivity(), SdkListener {
 
     // â”€â”€ Connection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    override fun onConnected() { /* transport ready â€” safe to call commands */ }
+    override fun onConnected() { /* transport ready - safe to call commands */ }
 
     override fun onDisconnected() { /* transport dropped or disconnect() called */ }
 
@@ -274,17 +274,17 @@ class MainActivity : AppCompatActivity(), SdkListener {
     }
 
     override fun onDeviceConfigLoaded(config: JSONObject) {
-        // Device's current hardware config â€” use to pre-populate Settings dialog
+        // Device's current hardware config - use to pre-populate Settings dialog
     }
 
     // â”€â”€ USB lock (BLE transport only) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     override fun onUsbLocked() {
-        // Device has an active USB host â€” BLE is config-only
+        // Device has an active USB host - BLE is config-only
     }
 
     override fun onUsbUnlocked() {
-        // USB host disconnected â€” full BLE access restored
+        // USB host disconnected - full BLE access restored
     }
 
     // â”€â”€ RFID â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -302,7 +302,7 @@ class MainActivity : AppCompatActivity(), SdkListener {
     override fun onReadingStopped() { /* device acknowledged stopReading() */ }
 
     override fun onCheckoutConfirmed(transactionNo: String) {
-        // All checkout batches ACK'd â€” transaction complete
+        // All checkout batches ACK'd - transaction complete
     }
 
     override fun onConfigUpdated() { /* device acknowledged sendDeviceConfig() */ }
@@ -337,7 +337,7 @@ class MainActivity : AppCompatActivity(), SdkListener {
     }
 
     override fun onBleScanComplete(devices: List<BleDeviceInfo>) {
-        // Scan ended â€” full result list
+        // Scan ended - full result list
     }
 
     // â”€â”€ Errors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -348,7 +348,7 @@ class MainActivity : AppCompatActivity(), SdkListener {
 }
 ```
 
-All methods except `onConnected`, `onDisconnected`, `onCommandAcknowledged`, `onTagDetected`, and `onError` have default no-op implementations â€” override only what you need.
+All methods except `onConnected`, `onDisconnected`, `onCommandAcknowledged`, `onTagDetected`, and `onError` have default no-op implementations - override only what you need.
 
 ---
 
@@ -381,7 +381,7 @@ Example config JSON:
 }
 ```
 
-Use this to pre-populate your Settings dialog so the operator always sees the actual device state â€” not cached/default values.
+Use this to pre-populate your Settings dialog so the operator always sees the actual device state - not cached/default values.
 
 ---
 
@@ -421,7 +421,7 @@ sdk.checkoutCompleted(transactionNo = "#TX847263", epcs = collectedEpcs)
 
 **Batching** protects the STM device from memory pressure on large reads. The default batch size is **15 EPCs per command** (configurable via `SdkConfig.Builder().checkoutBatchSize(n)`).
 
-Example â€” 45 EPCs, batch size 15:
+Example - 45 EPCs, batch size 15:
 ```
 Batch 1/3 → onCommandAcknowledged("checkout_complete") ✓
 Batch 2/3 → onCommandAcknowledged("checkout_complete") ✓
@@ -528,7 +528,7 @@ Query with `sdk.currentMode` at any time.
 | Mode | Meaning |
 |---|---|
 | `IDLE` | Initialized, not connected |
-| `CONNECTED` | Transport open, handshake complete â€” ready for commands |
+| `CONNECTED` | Transport open, handshake complete - ready for commands |
 | `SCANNING` | `startReading()` sent, device streaming EPCs |
 | `PAUSED` | `pauseReading()` sent, device connected but not streaming |
 | `CHECKOUT_PENDING` | `checkoutCompleted()` sent, waiting for all batch ACKs |
@@ -573,8 +573,8 @@ override fun onResume() {
 
 | Setting | How to apply | Transport |
 |---|---|---|
-| **Baudrate** | `sdk.reconfigure(newConfig)` then `sdk.connect()` â€” cannot change on live connection | USB only |
-| **Region, Protocol, Antennas, Read Power** | `sdk.sendDeviceConfig(config)` â€” safe while `CONNECTED` or `PAUSED` | USB + BLE |
+| **Baudrate** | `sdk.reconfigure(newConfig)` then `sdk.connect()` - cannot change on live connection | USB only |
+| **Region, Protocol, Antennas, Read Power** | `sdk.sendDeviceConfig(config)` - safe while `CONNECTED` or `PAUSED` | USB + BLE |
 | **WiFi / LAN** | Included in `sendDeviceConfig(config)` via `.networkWifi()` or `.networkLan()` | USB + BLE |
 | **Checkout Batch Size** | Set in `SdkConfig.Builder().checkoutBatchSize(n)` before `initialize()`, or via Settings dialog | SDK only |
 
