@@ -15,7 +15,7 @@ axl SDK is an Android library that lets your app communicate with AXL hardware d
 
 ### 1. USB Device Connection
 
-Connect to an AXL RFID device with a single method call. The SDK automatically:
+Connect to an AXL hardware device with a single method call. The SDK automatically:
 - Detects the device when plugged in
 - Requests USB permission from the user (once)
 - Performs a connection handshake with the device
