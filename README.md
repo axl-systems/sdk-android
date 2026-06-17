@@ -8,7 +8,7 @@ Android SDK for integrating AXL RFID POS devices over USB.
 
 ## Overview
 
-axl SDK provides a clean Android API to communicate with AXL RFID hardware over USB. It handles the USB connection lifecycle, device handshake protocol, RFID tag scanning, barcode reading, NFC reading, device configuration, and checkout transactions — so your app only needs to respond to events.
+axl SDK provides a clean Android API to communicate with axl RFID hardware over USB. It handles the USB connection lifecycle, device handshake protocol, RFID tag scanning, barcode reading, NFC reading, device configuration, and checkout transactions — so your app only needs to respond to events.
 
 ---
 
@@ -16,7 +16,7 @@ axl SDK provides a clean Android API to communicate with AXL RFID hardware over 
 
 - Android 8.0+ (API 26)
 - USB OTG support on the Android device
-- AXL RFID hardware (AXL FLAT, AXL BIN, or AXL GATE)
+- AXL RFID hardware (AXL FLAT)
 
 ---
 
@@ -338,11 +338,9 @@ IDLE ─── connect() ──────────► CONNECTED
 
 ## Supported Devices
 
-| Display Name | SKU | Constant |
+| Display Name | Constant |
 |---|---|---|
-| AXL FLAT | AE03A001 | `DeviceInfo.DEVICE_TYPE_AXL_FLAT` |
-| AXL BIN | — | `DeviceInfo.DEVICE_TYPE_AXL_BIN` |
-| AXL GATE | — | `DeviceInfo.DEVICE_TYPE_AXL_GATE` |
+| AXL FLAT | `DeviceInfo.DEVICE_TYPE_AXL_FLAT` |
 
 ---
 

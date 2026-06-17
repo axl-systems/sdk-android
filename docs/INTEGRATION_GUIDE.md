@@ -346,7 +346,7 @@ Use `RfidDeviceConfig.Builder` to build the configuration, then send it to the d
 
 | Device | Method |
 |---|---|
-| **AE03A001 (AXL FLAT)** | `sdk.sendDeviceConfig(config)` — sends a lean `config` command |
+| **(AXL FLAT)** | `sdk.sendDeviceConfig(config)` — sends a lean `config` command |
 | **All other devices** | `sdk.updateDeviceConfig(config)` — sends the full `update_config` command |
 
 Both fire `onConfigUpdated()` on success.

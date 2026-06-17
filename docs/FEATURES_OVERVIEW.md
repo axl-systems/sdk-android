@@ -1,13 +1,13 @@
 # axl SDK — Features Overview
 
 **Version 26.2.1**  
-Android SDK for AXL RFID POS hardware integration
+Android SDK for axl hardware integration
 
 ---
 
 ## What is axl SDK?
 
-axl SDK is an Android library that lets your app communicate with AXL RFID POS devices over a USB cable. It takes care of all the low-level communication details — USB connection, protocol messaging, error handling, and reconnection — so your team can focus on building the POS application, not the hardware layer.
+axl SDK is an Android library that lets your app communicate with axl hardware devices over a USB cable. It takes care of all the low-level communication details — USB connection, protocol messaging, error handling, and reconnection — so your team can focus on building the POS application, not the hardware layer.
 
 ---
 
@@ -15,7 +15,7 @@ axl SDK is an Android library that lets your app communicate with AXL RFID POS d
 
 ### 1. USB Device Connection
 
-Connect to an AXL RFID device with a single method call. The SDK automatically:
+Connect to an axl Flat device with a single method call. The SDK automatically:
 - Detects the device when plugged in
 - Requests USB permission from the user (once)
 - Performs a connection handshake with the device
@@ -72,8 +72,8 @@ Push hardware settings to the device at any time — no restart required. Config
 The device acknowledges config updates with `onConfigUpdated()`.
 
 Two config formats are supported:
-- **`sendDeviceConfig()`** — Lean format for AE03A001 (AXL FLAT) devices
-- **`updateDeviceConfig()`** — Full format for other AXL devices
+- **`sendDeviceConfig()`** — Lean format for (axl FLAT) devices
+- **`updateDeviceConfig()`** — Full format for other axl devices
 
 ---
 
@@ -126,9 +126,7 @@ All errors surface through a single `onError(message)` callback with a human-rea
 
 | Device | Use Case |
 |---|---|
-| **AXL FLAT** (AE03A001) | Flat countertop POS reader |
-| **AXL BIN** | Bin / container scanning |
-| **AXL GATE** | Portal / gate scanning |
+| **AXL FLAT** | Flat countertop POS reader |
 
 ---
 

@@ -60,9 +60,7 @@ Initial public release of axl SDK.
 - `onDeviceLogReceived(level, message, timestamp)` — real-time firmware log stream
 
 **Supported Devices**
-- AXL FLAT (AE03A001) — `DeviceInfo.DEVICE_TYPE_AXL_FLAT`
-- AXL BIN — `DeviceInfo.DEVICE_TYPE_AXL_BIN`
-- AXL GATE — `DeviceInfo.DEVICE_TYPE_AXL_GATE`
+- AXL FLAT — `DeviceInfo.DEVICE_TYPE_AXL_FLAT`
 
 **Error Codes**
 - E001 `DEVICE_NOT_CONNECTED`
