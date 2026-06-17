@@ -1,13 +1,13 @@
 # axl SDK — Features Overview
 
 **Version 26.2.4**  
-Android SDK for AXL RFID POS hardware integration over USB and Bluetooth LE
+Android SDK for AXL hardware device integration over USB and Bluetooth LE
 
 ---
 
 ## What is axl SDK?
 
-axl SDK is an Android library that lets your app communicate with AXL RFID POS devices over a **USB cable** or **Bluetooth LE**. It takes care of all the low-level communication details — transport connection, protocol messaging, error handling, and reconnection — so your team can focus on building the POS application, not the hardware layer.
+axl SDK is an Android library that lets your app communicate with AXL hardware devices over a **USB cable** or **Bluetooth LE**. It takes care of all the low-level communication details — transport connection, protocol messaging, error handling, and reconnection — so your team can focus on building the POS application, not the hardware layer.
 
 ---
 
@@ -70,7 +70,7 @@ The SDK also tells you which **antenna port** detected each tag — helpful for 
 
 ### 5. Checkout Transaction — Auto-Batched
 
-When the customer is ready to pay, call `checkoutCompleted(transactionId, tags)`. The SDK automatically splits the EPC list into batches and sends them sequentially — protecting the STM device from memory pressure on large reads.
+When the customer is ready to pay, call `checkoutCompleted(transactionId, tags)`. The SDK automatically splits the EPC list into batches and sends them sequentially — protecting the harware device from memory pressure on large reads.
 
 **Batching behaviour:**
 - Default batch size: **15 EPCs per `checkout_complete` command**
@@ -185,9 +185,7 @@ All errors surface through a single `onError(message)` callback with a human-rea
 
 | Device | Use Case |
 |---|---|
-| **AXL FLAT STM** | Flat countertop POS reader |
-| **AXL BIN** | Bin / container scanning |
-| **AXL GATE** | Portal / gate scanning |
+| **AXL FLAT** | Flat countertop POS reader |
 
 ---
 

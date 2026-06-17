@@ -1,4 +1,4 @@
-﻿# AXL RFID SDK - POS Integration Guide
+﻿# AXL SDK - POS Integration Guide
 
 SDK version: **26.2.4**
 
@@ -95,7 +95,7 @@ dependencies {
 </activity>
 ```
 
-`res/xml/device_filter.xml` (STM32 CDC - default VID/PID):
+`res/xml/device_filter.xml` (Serial Adapter Filter - default VID/PID):
 
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -104,7 +104,7 @@ dependencies {
 </resources>
 ```
 
-> VID `1155` = `0x0483` (STMicroelectronics), PID `22336` = `0x5740` (STM32 CDC).
+> VID `1155` = `0x0483` (Embedded controller), PID `22336` = `0x5740` (Serial Adapter Filter).
 
 ---
 
@@ -134,7 +134,7 @@ sdk.initialize(context, config)
 
 | Option | Default | Notes |
 |---|---|---|
-| `baudRate` | `115200` | Must match RFID device firmware |
+| `baudRate` | `115200` | Must match AXL device firmware |
 | `commandTimeoutMs` | `5000` | ms before `E003 COMMAND_TIMEOUT` |
 | `autoReconnect` | `true` | Auto-reconnect on USB failure |
 | `debugLogging` | `false` | Enable in development; disable in production |
@@ -240,13 +240,13 @@ override fun onUsbUnlocked() {
 
 | Command | USB | BLE (no USB) | BLE (USB active) |
 |---|---|---|---|
-| `startReading()` | âœ“ | âœ“ | âœ— blocked |
-| `pauseReading()` | âœ“ | âœ“ | âœ— blocked |
-| `stopReading()` | âœ“ | âœ“ | âœ— blocked |
-| `checkoutCompleted()` | âœ“ | âœ“ | âœ— blocked |
-| `startBarcodeReading()` | âœ“ | âœ“ | âœ— blocked |
-| `startNfcReading()` | âœ“ | âœ“ | âœ— blocked |
-| `sendDeviceConfig()` | âœ“ | âœ“ | âœ“ allowed |
+| `startReading()` | - | - | X blocked |
+| `pauseReading()` | - | - | X blocked |
+| `stopReading()` | - | - | X blocked |
+| `checkoutCompleted()` | - | - | X blocked |
+| `startBarcodeReading()` | - | - | X blocked |
+| `startNfcReading()` | - | - | X blocked |
+| `sendDeviceConfig()` | - | - | - allowed |
 
 Blocked commands dispatch `onError("Device locked by USB host - config updates only")`.
 
@@ -259,7 +259,7 @@ Register with `sdk.setListener(listener)`. All callbacks are delivered on the **
 ```kotlin
 class MainActivity : AppCompatActivity(), SdkListener {
 
-    // â”€â”€ Connection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Connection ────────────────────────────────────────────────────────────
 
     override fun onConnected() { /* transport ready - safe to call commands */ }
 
@@ -277,7 +277,7 @@ class MainActivity : AppCompatActivity(), SdkListener {
         // Device's current hardware config - use to pre-populate Settings dialog
     }
 
-    // â”€â”€ USB lock (BLE transport only) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── USB lock (BLE transport only) ────────────────────────────────────────â”€
 
     override fun onUsbLocked() {
         // Device has an active USB host - BLE is config-only
@@ -287,7 +287,7 @@ class MainActivity : AppCompatActivity(), SdkListener {
         // USB host disconnected - full BLE access restored
     }
 
-    // â”€â”€ RFID â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── RFID ──────────────────────────────────────────────────────────────────
 
     override fun onTagDetected(epc: String, antenna: Int) {
         // Called many times per second during active scanning
@@ -317,19 +317,19 @@ class MainActivity : AppCompatActivity(), SdkListener {
         // Real-time log from device firmware
     }
 
-    // â”€â”€ Barcode â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Barcode ──────────────────────────────────────────────────────────────â”€
 
     override fun onBarcodeTagDetected(data: String) { /* scanned barcode string */ }
 
     override fun onBarcodeReadingStopped() { }
 
-    // â”€â”€ NFC â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── NFC ──────────────────────────────────────────────────────────────────â”€
 
     override fun onNfcTagDetected(uid: String, antenna: Int) { /* NFC tag UID */ }
 
     override fun onNfcReadingStopped() { }
 
-    // â”€â”€ BLE scan â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── BLE scan ──────────────────────────────────────────────────────────────
 
     override fun onBleDeviceFound(device: BleDeviceInfo) {
         // device.name, .address, .rssi, .bonded
@@ -340,7 +340,7 @@ class MainActivity : AppCompatActivity(), SdkListener {
         // Scan ended - full result list
     }
 
-    // â”€â”€ Errors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Errors ────────────────────────────────────────────────────────────────
 
     override fun onError(error: String) {
         // Always starts with [Exxx], e.g. "[E003] COMMAND_TIMEOUT: ..."
@@ -554,7 +554,7 @@ All errors arrive via `onError(String error)`. The string always starts with `[E
 
 ## 14. USB Auto-Launch
 
-With the manifest setup from Â§1, Android automatically launches the POS app when the RFID device is plugged in via USB. The `USB_DEVICE_ATTACHED` intent is delivered to `MainActivity` and a USB permission dialog is shown automatically.
+With the manifest setup from Â§1, Android automatically launches the POS app when the AXL device is plugged in via USB. The `USB_DEVICE_ATTACHED` intent is delivered to `MainActivity` and a USB permission dialog is shown automatically.
 
 To check current connection state on resume:
 

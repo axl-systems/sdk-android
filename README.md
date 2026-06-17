@@ -310,7 +310,7 @@ SdkConfig config = new SdkConfig.Builder()
 sdk.initialize(context, config);
 ```
 
-**Checkout batching** — `checkoutBatchSize` splits large EPC lists across multiple sequential `checkout_complete` commands. Each batch waits for the device ACK before the next is sent. `onCheckoutConfirmed` fires once after all batches complete. Default `15` protects the STM device from memory pressure on large reads. Set to `0` to disable batching.
+**Checkout batching** — `checkoutBatchSize` splits large EPC lists across multiple sequential `checkout_complete` commands. Each batch waits for the device ACK before the next is sent. `onCheckoutConfirmed` fires once after all batches complete. Default `15` protects the AXL device from memory pressure on large reads. Set to `0` to disable batching.
 
 **BLE transport:**
 
@@ -437,9 +437,7 @@ IDLE ─── connect() ──────────► CONNECTED
 
 | Display Name | Device Type | SKU | Constant |
 |---|---|---|---|
-| AXL FLAT STM | `AXL_FLAT` | `A120IAB` | `DeviceInfo.DEVICE_TYPE_AXL_FLAT` |
-| AXL BIN | `AXL_BIN` | — | `DeviceInfo.DEVICE_TYPE_AXL_BIN` |
-| AXL GATE | `AXL_GATE` | — | `DeviceInfo.DEVICE_TYPE_AXL_GATE` |
+| AXL FLAT | `AXL_FLAT` | - | `DeviceInfo.DEVICE_TYPE_AXL_FLAT` |
 
 ---
 

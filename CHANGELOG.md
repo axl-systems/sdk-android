@@ -71,7 +71,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 **DeviceInfo updates**
 - `DeviceInfo.getSku()` — returns the device SKU string from `ack_connection_sync` (e.g. `"A120IAB"`)
-- `DeviceInfo.SKU_AXL_FLAT = "A120IAB"` — SKU constant for AXL FLAT STM device
+- `DeviceInfo.SKU_AXL_FLAT = "A120IAB"` — SKU constant for AXL FLAT device
 - New constructor `DeviceInfo(name, deviceType, sku)` — existing 2-arg constructor unchanged
 
 ### Changed
