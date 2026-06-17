@@ -9,23 +9,6 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ## [26.2.2] — 2026-06-04
 
 ### Added
-- Bluetooth LE transport — configuration updates only (see full feature list in 26.3.0 below)
-- `SdkConfig.checkoutBatchSize` — default 15 EPCs per `checkout_complete` batch
-- `onDeviceConfigLoaded(JSONObject)` — device's current config received on connect
-- `onUsbLocked()` / `onUsbUnlocked()` — BLE config-only mode callbacks
-- `DeviceInfo.getSku()` and `DeviceInfo.SKU_AXL_FLAT = "A120IAB"`
-- `Sdk.isUsbLockedByRemote()`, `Sdk.isBluetoothTransport()`
-- BLE scan: `startBleScan()`, `stopBleScan()`, `getBondedBleDevices()`, `connectBle()`
-
-### Changed
-- `usb-serial-for-android` updated to `3.9.0`
-- All read/checkout commands blocked when USB-locked via BLE
-
----
-
-## [26.3.0] — 2026-06-04
-
-### Added
 
 **Bluetooth LE transport**
 - `TransportType.BLUETOOTH` — new transport option alongside existing `USB`
@@ -59,13 +42,21 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 **DeviceInfo updates**
 - `DeviceInfo.getSku()` — returns the device SKU string from `ack_connection_sync` (e.g. `"A120IAB"`)
-- `DeviceInfo.SKU_AXL_FLAT = "A120IAB"` — SKU constant for AXL FLAT STM device
+- `DeviceInfo.SKU_AXL_FLAT = "A120IAB"` — SKU constant for AXL FLAT device
 - New constructor `DeviceInfo(name, deviceType, sku)` — existing 2-arg constructor unchanged
+- Bluetooth LE transport — configuration updates only
+- `SdkConfig.checkoutBatchSize` — default 15 EPCs per `checkout_complete` batch
+- `onDeviceConfigLoaded(JSONObject)` — device's current config received on connect
+- `onUsbLocked()` / `onUsbUnlocked()` — BLE config-only mode callbacks
+- `DeviceInfo.getSku()` and `DeviceInfo.SKU_AXL_FLAT = "A120IAB"`
+- `Sdk.isUsbLockedByRemote()`, `Sdk.isBluetoothTransport()`
+- BLE scan: `startBleScan()`, `stopBleScan()`, `getBondedBleDevices()`, `connectBle()`
 
 ### Changed
-
 - `ack_connection_sync` response now parsed for `sku`, `usb`, and `config` fields in addition to existing `device` and `device_type`
 - `connection_sync` and `disconnect_sync` handshake commands unchanged in wire format — firmware update required to enable `usb:true` signalling
+- `usb-serial-for-android` updated to `3.9.0`
+- All read/checkout commands blocked when USB-locked via BLE
 
 ### Dependencies
 

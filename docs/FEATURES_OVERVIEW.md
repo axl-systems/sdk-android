@@ -1,13 +1,13 @@
 # axl SDK — Features Overview
 
 **Version 26.2.2**  
-Android SDK for AXL RFID POS hardware integration over USB and Bluetooth LE
+Android SDK for axl hardware integration over USB and Bluetooth LE
 
 ---
 
 ## What is axl SDK?
 
-axl SDK is an Android library that lets your app communicate with AXL RFID POS devices over a **USB cable** or **Bluetooth LE**. It takes care of all the low-level communication details — transport connection, protocol messaging, error handling, and reconnection — so your team can focus on building the POS application, not the hardware layer.
+axl SDK is an Android library that lets your app communicate with axl hardware devices over a **USB cable** or **Bluetooth LE**. It takes care of all the low-level communication details — transport connection, protocol messaging, error handling, and reconnection — so your team can focus on building the POS application, not the hardware layer.
 
 ---
 
@@ -15,7 +15,7 @@ axl SDK is an Android library that lets your app communicate with AXL RFID POS d
 
 ### 1. USB Device Connection
 
-Connect to an AXL RFID device with a single method call. The SDK automatically:
+Connect to an axl Hardware device with a single method call. The SDK automatically:
 - Detects the device when plugged in
 - Requests USB permission from the user (once)
 - Performs a connection handshake with the device
@@ -29,12 +29,12 @@ Your app receives a simple `onConnected()` or `onDisconnected()` callback — no
 
 ### 2. Bluetooth LE Connectivity — Configuration Only
 
-Connect to an AXL device over Bluetooth LE to push configuration updates remotely — without a USB cable.
+Connect to an axl Hardware device over Bluetooth LE to push configuration updates remotely — without a USB cable.
 
 **Important:** BLE connectivity is designed for **configuration updates only**. When a USB tablet is actively connected to the device, the BLE-connected tablet automatically enters config-only mode. Reading (RFID, Barcode, NFC) and checkout are not available over BLE in this scenario.
 
 **How it works:**
-- Scan for nearby AXL devices using `startBleScan()`
+- Scan for nearby axl devices using `startBleScan()`
 - Already-paired devices appear instantly via `getBondedBleDevices()`
 - Connect to a selected device with `connectBle(macAddress)`
 - On connect, the device reports its USB status (`usb:true` = USB host active)
@@ -189,9 +189,7 @@ All errors surface through a single `onError(message)` callback with a human-rea
 
 | Device | Use Case |
 |---|---|
-| **AXL FLAT STM** | Flat countertop POS reader |
-| **AXL BIN** | Bin / container scanning |
-| **AXL GATE** | Portal / gate scanning |
+| **axl FLAT** | Flat countertop POS reader |
 
 ---
 
