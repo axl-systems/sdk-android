@@ -126,7 +126,7 @@ val config = SdkConfig.Builder()
     .commandTimeoutMs(5000)        // ms to wait for device ACK (default: 5000)
     .autoReconnect(true)           // reconnect on unexpected USB drop (default: true)
     .debugLogging(false)           // true = verbose raw-JSON logs
-    .checkoutBatchSize(15)         // EPCs per checkout_complete batch (default: 15)
+    .checkoutBatchSize(20)         // EPCs per checkout_complete batch (default: 20)
     .build()
 
 sdk.initialize(context, config)
@@ -138,7 +138,7 @@ sdk.initialize(context, config)
 | `commandTimeoutMs` | `5000` | ms before `E003 COMMAND_TIMEOUT` |
 | `autoReconnect` | `true` | Auto-reconnect on USB failure |
 | `debugLogging` | `false` | Enable in development; disable in production |
-| `checkoutBatchSize` | `15` | EPCs per `checkout_complete`; `0` = no batching |
+| `checkoutBatchSize` | `20` | EPCs per `checkout_complete`; `0` = no batching |
 
 > `initialize()` is idempotent - duplicate calls are silently ignored.
 
@@ -419,9 +419,9 @@ sdk.checkoutCompleted(transactionNo = "#TX847263", epcs = collectedEpcs)
 // â†’ onCheckoutConfirmed("#TX847263") fires once after ALL batches complete
 ```
 
-**Batching** protects the STM device from memory pressure on large reads. The default batch size is **15 EPCs per command** (configurable via `SdkConfig.Builder().checkoutBatchSize(n)`).
+**Batching** protects the STM device from memory pressure on large reads. The default batch size is **20 EPCs per command** (configurable via `SdkConfig.Builder().checkoutBatchSize(n)`).
 
-Example - 45 EPCs, batch size 15:
+Example - 45 EPCs, batch size 20:
 ```
 Batch 1/3 → onCommandAcknowledged("checkout_complete") ✓
 Batch 2/3 → onCommandAcknowledged("checkout_complete") ✓

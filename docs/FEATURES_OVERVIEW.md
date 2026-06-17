@@ -73,17 +73,17 @@ The SDK also tells you which **antenna port** detected each tag — helpful for 
 When the customer is ready to pay, call `checkoutCompleted(transactionId, tags)`. The SDK automatically splits the EPC list into batches and sends them sequentially — protecting the STM device from memory pressure on large reads.
 
 **Batching behaviour:**
-- Default batch size: **15 EPCs per `checkout_complete` command**
+- Default batch size: **20 EPCs per `checkout_complete` command**
 - If total EPCs ≤ batch size → single command (no change in behaviour)
 - If total EPCs > batch size → multiple commands sent sequentially, each waiting for device acknowledgement
 - `onCheckoutConfirmed(txnId)` fires **once** after all batches complete — not per batch
 - Configurable via `SdkConfig.Builder().checkoutBatchSize(n)` — set to `0` to disable batching
 
-Example — 45 EPCs with default batch size 15:
+Example — 45 EPCs with default batch size 20:
 ```
-Batch 1 → checkout_complete [EPC 1–15]   → ack ✓
-Batch 2 → checkout_complete [EPC 16–30]  → ack ✓
-Batch 3 → checkout_complete [EPC 31–45]  → ack ✓
+Batch 1 → checkout_complete [EPC 1–20]   → ack ✓
+Batch 2 → checkout_complete [EPC 21–40]  → ack ✓
+Batch 3 → checkout_complete [EPC 41–45]  → ack ✓
 → onCheckoutConfirmed("#TX123") fires once
 ```
 

@@ -69,7 +69,7 @@ public class MainActivity extends AppCompatActivity implements SdkListener {
                 .commandTimeoutMs(5000)
                 .autoReconnect(true)
                 .debugLogging(true)
-                .checkoutBatchSize(15)   // max 15 EPCs per checkout_complete command
+                .checkoutBatchSize(20)   // max 20 EPCs per checkout_complete command
                 .build();
 
         sdk.initialize(this, config);
@@ -95,7 +95,7 @@ public class MainActivity extends AppCompatActivity implements SdkListener {
             }
             // Generate a unique transaction ID
             String txId = "TX-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
-            // SDK auto-batches EPCs into groups of checkoutBatchSize (default 15)
+            // SDK auto-batches EPCs into groups of checkoutBatchSize (default 20)
             // onCheckoutConfirmed fires once after all batches are ACK'd
             sdk.checkoutCompleted(txId, new ArrayList<>(scannedEpcs));
         });

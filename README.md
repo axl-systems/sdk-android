@@ -304,13 +304,13 @@ SdkConfig config = new SdkConfig.Builder()
     .autoReconnect(true)          // Reconnect on unexpected disconnect (default: true)
     .debugLogging(false)          // Verbose SDK logging
     .baudRate(115200)             // Serial baud rate (default: 115200)
-    .checkoutBatchSize(15)        // EPCs per checkout_complete batch (default: 15)
+    .checkoutBatchSize(20)        // EPCs per checkout_complete batch (default: 20)
     .build();
 
 sdk.initialize(context, config);
 ```
 
-**Checkout batching** — `checkoutBatchSize` splits large EPC lists across multiple sequential `checkout_complete` commands. Each batch waits for the device ACK before the next is sent. `onCheckoutConfirmed` fires once after all batches complete. Default `15` protects the STM device from memory pressure on large reads. Set to `0` to disable batching.
+**Checkout batching** — `checkoutBatchSize` splits large EPC lists across multiple sequential `checkout_complete` commands. Each batch waits for the device ACK before the next is sent. `onCheckoutConfirmed` fires once after all batches complete. Default `20` protects the STM device from memory pressure on large reads. Set to `0` to disable batching.
 
 **BLE transport:**
 
