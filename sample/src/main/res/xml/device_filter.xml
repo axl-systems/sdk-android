@@ -3,5 +3,5 @@
     <usb-device
         vendor-id="1155"
         product-id="22336" />
-    <!-- 1155 = 0x0483 (STMicroelectronics), 22336 = 0x5740 (STM32 CDC) -->
+    <!-- 1155 = 0x0483 (Embedded controller), 22336 = 0x5740 (Serial Adapter Filter) -->
 </resources>

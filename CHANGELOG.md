@@ -6,24 +6,25 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [26.2.5] — 2026-06-12
+## [26.2.5] — 2026-06-18
 
-### Changed
-- **Checkout batch size default raised from 15 to 20** — `SdkConfig.DEFAULT_CHECKOUT_BATCH_SIZE` is now `20`; apps not setting `checkoutBatchSize()` explicitly will send up to 20 EPCs per `checkout_complete` command instead of 15
+### Added
+- **Hop frequency channel mapping for AXL_FLAT devices** (`HopFrequencyTable`): New SDK-internal utility class that maps channel indices 1–20 to the corresponding hardware frequencies and back. The application works with simple channel numbers; the SDK resolves them to the correct frequency values before sending to the device and reverses the mapping when loading the device configuration on connect. Wire format and firmware are unchanged.
 
 ### Fixed
-- **Spurious disconnect/connect cycling during auto-reconnect**: `openDevice()` was calling `onTransportDisconnected()` on every failed reconnect attempt (no driver, `usbManager.openDevice()` returned null, port config error). Each failure fired `onDisconnected()` in the app, producing visible connect/disconnect cycling while the cable was unplugged. Failures during the reconnect path are now handled silently; `onTransportDisconnected()` is only fired when the initial `connect()` call fails.
+- **Checkout batch size default raised from 15 to 20** — `SdkConfig.DEFAULT_CHECKOUT_BATCH_SIZE` is now `20`; apps not setting `checkoutBatchSize()` explicitly will send up to 20 EPCs per `checkout_complete` command instead of 15
+- **Min SDK lowered from API 26 to API 21** (Android 5.0 Lollipop) — the SDK now supports a wider range of Android devices
+- Removed `java.time.Instant` usage in `getCurrentTimestamp()` — replaced with `SimpleDateFormat` which works on all supported API levels without requiring core library desugaring
 - **Auto-reconnect after power-cycle fails to initialise device**: `onTransportReconnected()` was dispatching `onConnected()` directly without performing the `connection_sync` handshake. After a power-cycle the device reboots into its initial state and requires a fresh handshake. Auto-reconnect now sends `connection_sync` and waits for the ACK before dispatching `onConnected()`. If the device is not yet ready (handshake times out), the port is closed and another reconnect attempt is scheduled automatically.
-- **Permission receiver ignored reconnect context**: The USB permission broadcast receiver always called `openDevice(device, false)`, which suppressed the `onTransportReconnected()` notification even when permission was requested during auto-reconnect. The receiver now passes the correct reconnect context flag so `onConnected()` fires correctly. It also schedules a retry if permission is denied during auto-reconnect instead of silently stopping the loop.
-- **Auto-reconnect loops indefinitely on devices that report zero antennas in `ack_connection_sync`**: A previous fix added an antenna-count guard to `SessionManager.onTransportReconnected()` — if `ack_connection_sync` contained zero antennas the handshake was retried, on the assumption that zero antennas meant the RFID module was not yet ready. Testing against SKU `AE10A001` showed that this device never includes antenna data in `ack_connection_sync` by firmware design, even when fully operational. The guard caused the retry loop to exhaust all five attempts on every reconnect and left the device permanently disconnected. The antenna-count check has been removed. `onConnected()` is now dispatched as soon as a valid `ack_connection_sync` ACK is received; the retry loop fires only when the handshake ACK does not arrive within the configured timeout window.
-- **`connection_sync` sent before device UART is ready after USB re-enumeration**: After the serial port was opened on reconnect, `connection_sync` was sent immediately — before the CDC/ACM UART receive buffer had stabilised and before any DTR-triggered device reset had completed. On some STM32 firmware configurations asserting DTR causes a brief MCU reset; sending a command during that window meant the device never received it, causing the handshake to time out unnecessarily. A 500 ms settle delay (`PORT_SETTLE_MS`) has been added in `UsbTransport.openDevice()` between port open and the first handshake command on the reconnect path. Initial `connect()` calls are unaffected.
+- **USB permission crash on Android 14+ (API 34+)**: `UsbTransport.requestPermission()` was creating a `PendingIntent` with `FLAG_MUTABLE`, which Android 14 blocks for implicit intents. Changed to `FLAG_IMMUTABLE` — the USB permission system does not require a mutable intent and works correctly with this flag on all supported Android versions.
 - **Spurious disconnect/connect cycling during auto-reconnect**: `openDevice()` was calling `onTransportDisconnected()` on every failed reconnect attempt (no driver, `usbManager.openDevice()` returned null, port config error). Each failure fired `onDisconnected()` in the app, producing visible connect/disconnect cycling while the cable was unplugged. Failures during the reconnect path are now handled silently; `onTransportDisconnected()` is only fired when the initial `connect()` call fails.
-- **Auto-reconnect after power-cycle fails to initialise device**: `onTransportReconnected()` was dispatching `onConnected()` directly without performing the `connection_sync` handshake. After a power-cycle the device reboots into its initial state and requires a fresh handshake. Auto-reconnect now sends `connection_sync` and waits for the ACK before dispatching `onConnected()`. If the device is not yet ready (handshake times out), the port is closed and another reconnect attempt is scheduled automatically.
 - **Permission receiver ignored reconnect context**: The USB permission broadcast receiver always called `openDevice(device, false)`, which suppressed the `onTransportReconnected()` notification even when permission was requested during auto-reconnect. The receiver now passes the correct reconnect context flag so `onConnected()` fires correctly. It also schedules a retry if permission is denied during auto-reconnect instead of silently stopping the loop.
+- **Auto-reconnect loops indefinitely on devices that report zero antennas in `ack_connection_sync`**: A previous fix added an antenna-count guard to `SessionManager.onTransportReconnected()` — if `ack_connection_sync` contained zero antennas the handshake was retried, on the assumption that zero antennas meant the RFID module was not yet ready. The guard caused the retry loop to exhaust all five attempts on every reconnect and left the device permanently disconnected. The antenna-count check has been removed. `onConnected()` is now dispatched as soon as a valid `ack_connection_sync` ACK is received; the retry loop fires only when the handshake ACK does not arrive within the configured timeout window.
+- **`connection_sync` sent before device UART is ready after USB re-enumeration**: After the serial port was opened on reconnect, `connection_sync` was sent immediately — before the CDC/ACM UART receive buffer had stabilised and before any DTR-triggered device reset had completed. On some firmware configurations asserting DTR causes a brief MCU reset; sending a command during that window meant the device never received it, causing the handshake to time out unnecessarily. A 500 ms settle delay (`PORT_SETTLE_MS`) has been added in `UsbTransport.openDevice()` between port open and the first handshake command on the reconnect path. Initial `connect()` calls are unaffected.
 
 ---
 
-## [26.2.4] — 2026-06-11
+## [26.2.4] — 2026-06-10
 
 ### Changed
 - **Min SDK lowered from API 26 to API 21** (Android 5.0 Lollipop) — the SDK now supports a wider range of Android devices
@@ -88,7 +89,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 **DeviceInfo updates**
 - `DeviceInfo.getSku()` — returns the device SKU string from `ack_connection_sync` (e.g. `"A120IAB"`)
-- `DeviceInfo.SKU_AXL_FLAT = "A120IAB"` — SKU constant for AXL FLAT STM device
+- `DeviceInfo.SKU_AXL_FLAT = "A120IAB"` — SKU constant for AXL FLAT device
 - New constructor `DeviceInfo(name, deviceType, sku)` — existing 2-arg constructor unchanged
 
 ### Changed
