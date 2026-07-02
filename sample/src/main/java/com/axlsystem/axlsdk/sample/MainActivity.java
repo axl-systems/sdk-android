@@ -1,5 +1,8 @@
 package com.axlsystem.axlsdk.sample;
 
+import android.content.Intent;
+import android.hardware.usb.UsbDevice;
+import android.hardware.usb.UsbManager;
 import android.os.Bundle;
 import android.widget.Button;
 import android.widget.TextView;
@@ -24,6 +27,7 @@ import java.util.UUID;
  *
  * Covers:
  *  - USB connection + device handshake
+ *  - USB device attach handling (onNewIntent) for correct port targeting on replug
  *  - Device info and config loaded on connect
  *  - RFID start / pause / stop / checkout (auto-batched)
  *  - USB lock callbacks for BLE config-only mode
@@ -67,13 +71,16 @@ public class MainActivity extends AppCompatActivity implements SdkListener {
 
         SdkConfig config = new SdkConfig.Builder()
                 .commandTimeoutMs(5000)
-                .autoReconnect(true)
                 .debugLogging(true)
                 .checkoutBatchSize(20)   // max 20 EPCs per checkout_complete command
                 .build();
 
         sdk.initialize(this, config);
         sdk.setListener(this);
+
+        // Pin the USB device delivered by the launch intent (if the activity was opened
+        // by the OS in response to the cable being plugged in).
+        handleUsbAttachIntent(getIntent());
 
         // connect() sends connection_sync handshake; onConnected() fires on success
         btnConnect.setOnClickListener(v -> sdk.connect());
@@ -106,6 +113,28 @@ public class MainActivity extends AppCompatActivity implements SdkListener {
     }
 
     @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        // Fired when the cable is replugged while the activity is already running.
+        // Pins the new device path so connect() targets the correct port even if
+        // the OS assigned a different path after re-enumeration.
+        handleUsbAttachIntent(intent);
+    }
+
+    private void handleUsbAttachIntent(Intent intent) {
+        if (!UsbManager.ACTION_USB_DEVICE_ATTACHED.equals(intent.getAction())) return;
+        UsbDevice device;
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE, UsbDevice.class);
+        } else {
+            device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
+        }
+        if (device == null) return;
+        sdk.setTargetUsbDevice(device);
+        setStatus("USB device attached — tap Connect");
+    }
+
+    @Override
     protected void onDestroy() {
         super.onDestroy();
         if (sdk != null && sdk.isConnected()) sdk.disconnect();
@@ -131,12 +160,6 @@ public class MainActivity extends AppCompatActivity implements SdkListener {
     }
 
     @Override
-    public void onAntennasDetected(List<Integer> antennas) {
-        // Fired after onConnected() with the list of active antenna ports
-        setStatus("Connected — antennas: " + antennas);
-    }
-
-    @Override
     public void onDeviceConfigLoaded(JSONObject config) {
         // Fired after onConnected() with the device's current hardware configuration.
         // Use this to pre-populate your Settings dialog without a separate fetch command.
@@ -151,7 +174,8 @@ public class MainActivity extends AppCompatActivity implements SdkListener {
 
     @Override
     public void onDisconnected() {
-        setStatus("Disconnected");
+        // SDK does not auto-reconnect. Replug the cable and tap Connect.
+        setStatus("Disconnected — replug cable and tap Connect");
         tvDeviceInfo.setText("");
         setButtonStates(false);
     }
@@ -207,11 +231,28 @@ public class MainActivity extends AppCompatActivity implements SdkListener {
     }
 
     @Override
-    public void onTagDetected(String epc, int antenna) {
+    public void onTagDetected(String epc) {
         if (!scannedEpcs.contains(epc)) {
             scannedEpcs.add(epc);
             updateEpcList();
         }
+    }
+
+    @Override
+    public void onModuleTemperatureReceived(int tempCelsius) {
+        // Optional — only fires on new firmware that reports module_temp in tag_detected.
+        setStatus("Scanning — Module temp: " + tempCelsius + "°C");
+    }
+
+    @Override
+    public void onNfcTagDetected(String uid) {
+        setStatus("NFC — UID: " + uid);
+    }
+
+    @Override
+    public void onNfcRawDataReceived(String uid, String tech, JSONObject rawData) {
+        // Optional — only fires on new firmware. Use rawData.optJSONObject("nfca") etc.
+        setStatus("NFC — UID: " + uid + "  tech: " + tech);
     }
 
     @Override
@@ -244,8 +285,16 @@ public class MainActivity extends AppCompatActivity implements SdkListener {
 
     @Override
     public void onHealthInfoReceived(JSONObject data) {
-        int temp = data.optInt("module_temperature", -1);
-        setStatus("Health — Module temp: " + temp + "°C");
+        double temp    = data.optDouble("module_temperature", Double.NaN);
+        int sdTotal    = data.optInt("sd_total_mb", -1);
+        int sdUsed     = data.optInt("sd_used_mb", -1);
+        int sdFree     = data.optInt("sd_free_mb", -1);
+
+        String tempStr = Double.isNaN(temp) ? "N/A" : String.format("%.1f°C", temp);
+        String sdStr   = sdTotal >= 0
+                ? "  SD: " + sdUsed + "MB used / " + sdTotal + "MB (" + sdFree + "MB free)"
+                : "";
+        setStatus("Health — Temp: " + tempStr + sdStr);
     }
 
     @Override

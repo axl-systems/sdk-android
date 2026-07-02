@@ -1,14 +1,14 @@
 # axl SDK
 
-Android SDK for integrating AXL hardware devices over USB or Bluetooth.
+Android SDK for integrating AXL Hardware devices over USB or Bluetooth.
 
-**Version:** 26.2.5 &nbsp;·&nbsp; **Min SDK:** Android 5.0 (API 21) &nbsp;·&nbsp; **Language:** Java 11 &nbsp;·&nbsp; **License:** Apache 2.0
+**Version:** 26.2.6 &nbsp;·&nbsp; **Min SDK:** Android 5.0 (API 21) &nbsp;·&nbsp; **Language:** Java 11 &nbsp;·&nbsp; **License:** Apache 2.0
 
 ---
 
 ## Overview
 
-axl SDK provides a clean Android API to communicate with AXL hardware device over **USB** or **Bluetooth LE**. It handles the connection lifecycle, device handshake protocol, RFID tag scanning, barcode reading, NFC reading, device configuration, and checkout transactions — so your app only needs to respond to events.
+axl SDK provides a clean Android API to communicate with AXL Hardware device over **USB** or **Bluetooth LE**. It handles the connection lifecycle, device handshake protocol, RFID tag scanning, barcode reading, NFC reading, device configuration, and checkout transactions — so your app only needs to respond to events.
 
 > **Bluetooth note:** When connected via Bluetooth, the SDK operates in **configuration-only mode**. Reading (RFID, Barcode, NFC) and checkout commands are blocked. Only `sendDeviceConfig()` is permitted over BLE. This is enforced automatically when the device reports an active USB host connection.
 
@@ -180,7 +180,6 @@ sdk.disconnect();
 | `isConnected()` | `true` when device handshake is complete |
 | `getCurrentMode()` | Current `SdkMode` enum value |
 | `getDeviceInfo()` | Device SKU, type and display name from handshake |
-| `getConnectedAntennas()` | List of detected antenna port numbers |
 | `getConnectedDeviceName()` | Human-readable USB device name |
 | `isBluetoothTransport()` | `true` when active transport is BLE |
 | `isUsbLockedByRemote()` | `true` when BLE-connected and device reports USB host active |
@@ -243,7 +242,6 @@ All callbacks are dispatched on the **main (UI) thread**.
 |---|---|
 | `onConnected()` | Transport connected and device handshake complete |
 | `onDeviceIdentified(DeviceInfo)` | Device SKU, type and display name from handshake |
-| `onAntennasDetected(List<Integer>)` | Antenna ports reported by device hardware |
 | `onDeviceConfigLoaded(JSONObject)` | Device's current configuration received on connect |
 | `onDisconnected()` | Device disconnected (user-initiated or unexpected) |
 | `onError(String)` | Any SDK or transport error |
@@ -259,14 +257,15 @@ All callbacks are dispatched on the **main (UI) thread**.
 
 | Callback | When fired |
 |---|---|
-| `onTagDetected(epc, antenna)` | Single EPC detected during active scanning |
+| `onTagDetected(epc)` | Single EPC detected during active scanning |
+| `onModuleTemperatureReceived(tempCelsius)` | RFID module temperature — new firmware only; absent on old hardware |
 | `onCommandAcknowledged(cmd)` | Device acknowledged a sent command |
 | `onReadingPaused()` | Scanning paused successfully |
 | `onReadingStopped()` | Scanning stopped and EPC list delivered to device |
 | `onCheckoutConfirmed(txnId)` | All checkout batches acknowledged — transaction complete |
 | `onConfigUpdated()` | Device config update acknowledged |
 | `onReaderStatusReceived(boolean)` | Reader active/inactive status response |
-| `onHealthInfoReceived(JSONObject)` | Device module temperature (`module_temperature`, Integer °C) |
+| `onHealthInfoReceived(JSONObject)` | `module_temperature` (always present); `sd_total_mb`, `sd_used_mb`, `sd_free_mb` (new firmware only — use `optInt(key, -1)`) |
 | `onDeviceLogReceived(level, msg, ts)` | Log entry streamed from device firmware |
 
 ### Barcode
@@ -281,7 +280,8 @@ All callbacks are dispatched on the **main (UI) thread**.
 
 | Callback | When fired |
 |---|---|
-| `onNfcTagDetected(uid, antenna)` | NFC tag UID detected |
+| `onNfcTagDetected(uid)` | NFC tag UID detected |
+| `onNfcRawDataReceived(uid, tech, rawData)` | NFC tech type and raw detail block — new firmware only; absent on old hardware |
 | `onNfcCommandAcknowledged(cmd)` | NFC command acknowledged |
 | `onNfcReadingStopped()` | NFC reading stopped |
 
@@ -301,16 +301,15 @@ All callbacks are dispatched on the **main (UI) thread**.
 ```java
 SdkConfig config = new SdkConfig.Builder()
     .commandTimeoutMs(5000)       // ACK wait timeout (default: 5000 ms)
-    .autoReconnect(true)          // Reconnect on unexpected disconnect (default: true)
     .debugLogging(false)          // Verbose SDK logging
     .baudRate(115200)             // Serial baud rate (default: 115200)
-    .checkoutBatchSize(15)        // EPCs per checkout_complete batch (default: 15)
+    .checkoutBatchSize(20)        // EPCs per checkout_complete batch (default: 20)
     .build();
 
 sdk.initialize(context, config);
 ```
 
-**Checkout batching** — `checkoutBatchSize` splits large EPC lists across multiple sequential `checkout_complete` commands. Each batch waits for the device ACK before the next is sent. `onCheckoutConfirmed` fires once after all batches complete. Default `20` protects the AXL device from memory pressure on large reads. Set to `0` to disable batching.
+**Checkout batching** — `checkoutBatchSize` splits large EPC lists across multiple sequential `checkout_complete` commands. Each batch waits for the device ACK before the next is sent. `onCheckoutConfirmed` fires once after all batches complete. Default `20` protects the STM device from memory pressure on large reads. Set to `0` to disable batching.
 
 **BLE transport:**
 
@@ -341,7 +340,7 @@ RfidDeviceConfig config = new RfidDeviceConfig.Builder()
     .hopTime(200)
     .readOnFrequency(500)
     .readOffFrequency(500)
-    .hopFrequencyKhz("903250")
+    .hopFrequencyKhz("915250")
     .build();
 
 sdk.sendDeviceConfig(config);   // allowed over both USB and BLE
@@ -375,7 +374,7 @@ The config object shape:
     "wifi": {"ssid": "MyNetwork", "password": "secret", "security": "WPA2", "status": true}
   },
   "hop_time": 200,
-  "hop_frequency": [903250]
+  "hop_frequency": [915250]
 }
 ```
 

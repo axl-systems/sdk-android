@@ -1,6 +1,6 @@
 ﻿# AXL SDK - POS Integration Guide
 
-SDK version: **26.2.5**
+SDK version: **26.2.6**
 
 ---
 
@@ -124,7 +124,6 @@ sdk.setListener(this)       // register before connect()
 val config = SdkConfig.Builder()
     .baudRate(115200)              // serial baud rate (default: 115200)
     .commandTimeoutMs(5000)        // ms to wait for device ACK (default: 5000)
-    .autoReconnect(true)           // reconnect on unexpected USB drop (default: true)
     .debugLogging(false)           // true = verbose raw-JSON logs
     .checkoutBatchSize(20)         // EPCs per checkout_complete batch (default: 20)
     .build()
@@ -136,7 +135,6 @@ sdk.initialize(context, config)
 |---|---|---|
 | `baudRate` | `115200` | Must match AXL device firmware |
 | `commandTimeoutMs` | `5000` | ms before `E003 COMMAND_TIMEOUT` |
-| `autoReconnect` | `true` | Auto-reconnect on USB failure |
 | `debugLogging` | `false` | Enable in development; disable in production |
 | `checkoutBatchSize` | `20` | EPCs per `checkout_complete`; `0` = no batching |
 
@@ -157,7 +155,6 @@ On call this:
 
 After `onConnected()` the SDK also fires:
 - `onDeviceIdentified(DeviceInfo)` - device name, SKU, type
-- `onAntennasDetected(List<Int>)` - hardware antenna port numbers
 - `onDeviceConfigLoaded(JSONObject)` - device's current hardware configuration
 
 ```kotlin
@@ -269,10 +266,6 @@ class MainActivity : AppCompatActivity(), SdkListener {
         // deviceInfo.deviceName, .deviceType, .sku
     }
 
-    override fun onAntennasDetected(antennas: List<Int>) {
-        // e.g. [1, 2, 3, 4]
-    }
-
     override fun onDeviceConfigLoaded(config: JSONObject) {
         // Device's current hardware config - use to pre-populate Settings dialog
     }
@@ -289,8 +282,13 @@ class MainActivity : AppCompatActivity(), SdkListener {
 
     // ── RFID ──────────────────────────────────────────────────────────────────
 
-    override fun onTagDetected(epc: String, antenna: Int) {
+    override fun onTagDetected(epc: String) {
         // Called many times per second during active scanning
+    }
+
+    override fun onModuleTemperatureReceived(tempCelsius: Int) {
+        // Optional — fires once per tag_detected batch on new firmware only
+        // Old hardware never invokes this callback
     }
 
     override fun onCommandAcknowledged(cmd: String) {
@@ -325,7 +323,13 @@ class MainActivity : AppCompatActivity(), SdkListener {
 
     // ── NFC ──────────────────────────────────────────────────────────────────â”€
 
-    override fun onNfcTagDetected(uid: String, antenna: Int) { /* NFC tag UID */ }
+    override fun onNfcTagDetected(uid: String) { /* NFC tag UID */ }
+
+    override fun onNfcRawDataReceived(uid: String, tech: String, rawData: org.json.JSONObject) {
+        // Optional — only fires on new firmware that sends tech/raw_data in card_detected.
+        // rawData keys: "nfca", "isodep", etc. Use rawData.optJSONObject("nfca").
+        // Old hardware never invokes this callback.
+    }
 
     override fun onNfcReadingStopped() { }
 
@@ -377,7 +381,7 @@ Example config JSON:
     "wifi": {"ssid": "MyNetwork", "password": "secret", "security": "WPA2", "status": true}
   },
   "hop_time": 200,
-  "hop_frequency": [903250]
+  "hop_frequency": [915250]
 }
 ```
 
@@ -395,10 +399,10 @@ sdk.pauseReading()            // â†’ onCommandAcknowledged("read_pause") + 
 sdk.stopReading(collectedEpcs) // â†’ onCommandAcknowledged("read_stop") + onReadingStopped()
 ```
 
-`onTagDetected(epc, antenna)` fires for every EPC detected. It can fire hundreds of times per second. Deduplicate in your own layer:
+`onTagDetected(epc)` fires for every EPC detected. It can fire hundreds of times per second. Deduplicate in your own layer:
 
 ```kotlin
-override fun onTagDetected(epc: String, antenna: Int) {
+override fun onTagDetected(epc: String) {
     if (scannedEpcs.add(epc)) {   // LinkedHashSet for ordered dedup
         // process new tag
     }
@@ -452,7 +456,7 @@ val config = RfidDeviceConfig.Builder()
     .readOnFrequency(500)                // ms; accepted: 0, 500, 1000
     .readOffFrequency(500)
     .hopTime(200)
-    .hopFrequencyKhz("903250")
+    .hopFrequencyKhz("915250")
     .networkWifi("MySSID", "WPA2", "password")   // or .networkLan()
     .build()
 
@@ -492,9 +496,14 @@ sdk.getReadingStatus()    // â†’ onReaderStatusReceived(Boolean)
 
 `onHealthInfoReceived` delivers:
 
-| Field | Type | Description |
+| Field | Type | Notes |
 |---|---|---|
-| `module_temperature` | Int | RFID module temperature in °C |
+| `module_temperature` | Int | RFID module temperature in °C — always present |
+| `sd_total_mb` | Int | SD card total capacity in MB — new firmware only; absent on old hardware |
+| `sd_used_mb` | Int | SD card used space in MB — new firmware only |
+| `sd_free_mb` | Int | SD card free space in MB — new firmware only |
+
+SD card fields are optional. Use `data.optInt("sd_total_mb", -1)` — a value of `-1` means the field was not present in the payload.
 
 ---
 
