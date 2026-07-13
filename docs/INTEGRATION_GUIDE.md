@@ -1,6 +1,6 @@
 ﻿# AXL SDK - POS Integration Guide
 
-SDK version: **26.2.6**
+SDK version: **26.2.7**
 
 ---
 
@@ -150,8 +150,17 @@ sdk.connect()
 
 On call this:
 1. Opens the USB serial transport
-2. Performs a device handshake
+2. Performs a `connection_sync` handshake (two attempts, 5 s each; 3 s gap between attempts)
 3. Fires `onConnected()` on success, or `onError()` on timeout/failure
+
+> **Android 12–14 note:** The CDC ACM USB host driver on these versions can deliver `ack_connection_sync` in 1-byte fragments, taking up to 4–5 s to reassemble. The SDK's 5 s handshake timeout and automatic retry handle this transparently — no app-side change is needed.
+
+> **Zombie scan note:** If the previous session ended without a clean disconnect (app killed, process crash), the firmware continues scanning. On the next fresh open the SDK automatically:
+> 1. Sends `read_stop` (2 attempts, 400 ms gap) to drain the ongoing scan burst
+> 2. Waits 300 ms for any remaining queued firmware responses (e.g. stale antenna/network config replies, health alerts from the prior session) to arrive
+> 3. Flushes the receive buffer entirely before sending `connection_sync`
+>
+> Without the flush, stale config responses queued from the previous session arrive fragmented alongside scan data and block the receive pipeline — `ack_connection_sync` cannot be dispatched until the stale-discard timer fires (500 ms), which is too late. This guard runs on fresh opens only; normal reconnects (port reuse after clean disconnect) are unaffected and incur no overhead.
 
 After `onConnected()` the SDK also fires:
 - `onDeviceIdentified(DeviceInfo)` - device name, SKU, type
@@ -163,9 +172,14 @@ override fun onConnected() {
 }
 
 override fun onDeviceIdentified(deviceInfo: DeviceInfo) {
-    val name = deviceInfo.deviceName   // e.g. "AXL FLAT STM"
-    val sku  = deviceInfo.sku          // e.g. "A120IAB"
-    val type = deviceInfo.deviceType   // e.g. "AXL_FLAT"
+    val sku   = deviceInfo.sku           // e.g. "A120IAB"
+    val type  = deviceInfo.deviceType    // e.g. "AXL_FLAT" (internal type code)
+    val build = deviceInfo.buildVersion  // e.g. "26.2.3"; empty string on older hardware
+
+    // For a human-readable USB label use sdk.getConnectedDeviceName() — this returns
+    // the iProduct descriptor string from the USB hardware (e.g. "AXL Flat RFID Reader").
+    // Fall back to deviceType when the USB name is unavailable.
+    val usbLabel = sdk.getConnectedDeviceName()?.takeIf { it.isNotBlank() } ?: type
 }
 
 override fun onDeviceConfigLoaded(config: JSONObject) {
@@ -263,7 +277,10 @@ class MainActivity : AppCompatActivity(), SdkListener {
     override fun onDisconnected() { /* transport dropped or disconnect() called */ }
 
     override fun onDeviceIdentified(deviceInfo: DeviceInfo) {
-        // deviceInfo.deviceName, .deviceType, .sku
+        // deviceInfo.deviceName  — human-readable name (falls back to deviceType if absent)
+        // deviceInfo.deviceType  — internal type code, e.g. "AXL_FLAT"
+        // deviceInfo.sku         — SKU string, e.g. "A120IAB"
+        // deviceInfo.buildVersion — firmware build, e.g. "26.2.3"; empty on older hardware
     }
 
     override fun onDeviceConfigLoaded(config: JSONObject) {
@@ -287,8 +304,8 @@ class MainActivity : AppCompatActivity(), SdkListener {
     }
 
     override fun onModuleTemperatureReceived(tempCelsius: Int) {
-        // Optional — fires once per tag_detected batch on new firmware only
-        // Old hardware never invokes this callback
+        // Optional — fires once per tag_detected batch when firmware reports module_temp.
+        // Firmware >= 26.2.3 includes this field. Old hardware never invokes this callback.
     }
 
     override fun onCommandAcknowledged(cmd: String) {
@@ -509,13 +526,69 @@ SD card fields are optional. Use `data.optInt("sd_total_mb", -1)` — a value of
 
 ## 11. Disconnecting
 
+### Normal disconnect (user-initiated)
+
 ```kotlin
 sdk.disconnect()
 ```
 
-Sends a `disconnect_sync` handshake to the device, waits for acknowledgment, then tears down the transport. If the device is unreachable, the disconnect still completes. `onDisconnected()` always fires.
+Asynchronous — submits work to an internal executor and returns immediately. `onDisconnected()` fires on the main thread when complete. If the device is unreachable the disconnect still proceeds. Use this for all normal flows (button tap, settings change, etc.).
 
-To change the transport at runtime (e.g. switch USB â†’ BLE):
+> **Disconnect while scanning:** if `disconnect()` is called when the reader is active (mode=SCANNING), the SDK automatically sends `read_stop` (up to 3 attempts, 400 ms gaps) before `disconnect_sync`. Skipping this step buries `disconnect_sync` in the firmware's tag-burst TX queue and causes an E003 timeout. No app-side change is needed — the SDK handles it.
+
+### App close / swipe from recents — `disconnectBlocking()`
+
+`Activity.onDestroy()` is not guaranteed to run when the user swipes the app from the recents screen — Android can kill the process first. Use a `Service` with `android:stopWithTask="false"` to receive `onTaskRemoved()` reliably, and call `disconnectBlocking()` inside it:
+
+```kotlin
+// SdkCleanupService.kt
+class SdkCleanupService : Service() {
+
+    override fun onBind(intent: Intent?): IBinder? = null
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int) = START_NOT_STICKY
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        // disconnectBlocking() runs disconnect_sync on THIS thread — no executor.
+        // onTaskRemoved() does not return until the USB write completes, so the
+        // process stays alive long enough for the firmware to receive the command.
+        try { Sdk.getInstance().disconnectBlocking() } catch (e: Exception) { }
+        stopSelf()
+        super.onTaskRemoved(rootIntent)
+    }
+}
+```
+
+Register in `AndroidManifest.xml`:
+
+```xml
+<service
+    android:name=".SdkCleanupService"
+    android:exported="false"
+    android:stopWithTask="false" />
+```
+
+Arm / disarm the service from your `SdkListener`:
+
+```kotlin
+override fun onConnected() {
+    startService(Intent(this, SdkCleanupService::class.java))   // arm
+}
+
+override fun onDisconnected() {
+    stopService(Intent(this, SdkCleanupService::class.java))    // disarm — already disconnected
+}
+```
+
+> **Why `disconnectBlocking()` and not `disconnect()` + sleep?**
+> `disconnect()` posts work to `connectExecutor` and returns in ~0 ms. Android kills the process after `onTaskRemoved()` returns before the executor runs. `disconnectBlocking()` sends `read_stop` (up to 3 attempts, 400 ms gaps) then `disconnect_sync` synchronously on the calling thread — the method cannot return until the USB writes complete. Does not fire `SdkListener` callbacks.
+
+> **Why `onStop(isFinishing=true)` and not `onDestroy()`?**
+> `onStop()` runs while the USB port is guaranteed open. By the time `onDestroy()` runs, Android may have already released the USB port at the kernel level, making writes silently fail. `isFinishing` is `false` on a Home press so scanning is not interrupted by normal backgrounding — only swipe-from-recents and Back trigger the disconnect.
+
+> **Why the `SdkCleanupService` on top of `onStop()`?**
+> On some OEM devices `onStop()` does not receive `isFinishing=true` on task removal. `SdkCleanupService.onTaskRemoved()` provides a second guarantee via a path that is independent of Activity lifecycle.
+
+### Switching transport at runtime
 
 ```kotlin
 sdk.reconfigure(newConfig)   // tears down existing connection

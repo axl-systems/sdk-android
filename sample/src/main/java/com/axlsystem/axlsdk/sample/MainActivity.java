@@ -91,7 +91,13 @@ public class MainActivity extends AppCompatActivity implements SdkListener {
             sdk.startReading();
         });
 
-        btnPause.setOnClickListener(v -> sdk.pauseReading());
+        btnPause.setOnClickListener(v -> {
+            // Disable immediately — pauseReading() may retry once (300 ms gap) before
+            // onCommandAcknowledged("read_pause") fires. Without this, a double-tap
+            // queues a second pauseReading() during the retry window.
+            btnPause.setEnabled(false);
+            sdk.pauseReading();
+        });
 
         btnStop.setOnClickListener(v -> sdk.stopReading(new ArrayList<>(scannedEpcs)));
 
@@ -135,9 +141,27 @@ public class MainActivity extends AppCompatActivity implements SdkListener {
     }
 
     @Override
+    protected void onStop() {
+        super.onStop();
+        // When the activity is finishing (swipe from recents, Back button) disconnect
+        // synchronously HERE — not in onDestroy(). onStop() runs while the USB port is
+        // guaranteed open; by the time onDestroy() runs the OS may have already released
+        // the port at the kernel level, making writes silently fail.
+        //
+        // isFinishing() is false when the user presses Home (app just backgrounded),
+        // so this does NOT interrupt an active scanning session on a normal background.
+        if (isFinishing() && sdk != null && sdk.isConnected()) {
+            sdk.disconnectBlocking();
+        }
+    }
+
+    @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (sdk != null && sdk.isConnected()) sdk.disconnect();
+        // Safety net only — disconnectBlocking() was already called in onStop() when
+        // isFinishing()=true. This is a no-op in the normal close path (isConnected=false
+        // after onStop disconnect), but catches edge cases where onStop() was skipped.
+        if (sdk != null && sdk.isConnected()) sdk.disconnectBlocking();
     }
 
     // =========================================================================
@@ -148,15 +172,26 @@ public class MainActivity extends AppCompatActivity implements SdkListener {
 
     @Override
     public void onConnected() {
+        // Arm the cleanup service so the firmware receives disconnect_sync if the
+        // user swipes the app away from the recents screen (onDestroy is not reliable
+        // in that case — onTaskRemoved() in SdkCleanupService handles it instead).
+        startService(new Intent(this, SdkCleanupService.class));
         setStatus("Connected — ready to scan");
         setButtonStates(true);
     }
 
     @Override
     public void onDeviceIdentified(DeviceInfo info) {
-        // Fired after onConnected() with device name, type, and SKU
-        tvDeviceInfo.setText(info.getDeviceName() + "  ·  SKU: " + info.getSku()
-                + "  ·  " + info.getDeviceType());
+        // Fired after onConnected() with device type, SKU, and firmware build version.
+        // Use sdk.getConnectedDeviceName() for the human-readable USB product label
+        // (the iProduct string from the USB descriptor, e.g. "AXL Flat RFID Reader").
+        // info.getDeviceType() is the firmware internal type code (e.g. "AXL_FLAT").
+        String usbName = sdk.getConnectedDeviceName();
+        String displayName = (usbName != null && !usbName.isEmpty()) ? usbName : info.getDeviceType();
+        String buildStr = info.getBuildVersion().isEmpty()
+                ? "" : "  ·  FW: " + info.getBuildVersion();
+        tvDeviceInfo.setText(displayName + "  ·  SKU: " + info.getSku()
+                + "  ·  " + info.getDeviceType() + buildStr);
     }
 
     @Override
@@ -174,6 +209,9 @@ public class MainActivity extends AppCompatActivity implements SdkListener {
 
     @Override
     public void onDisconnected() {
+        // Disarm the cleanup service — clean disconnect already happened, no need for
+        // onTaskRemoved() to fire a second disconnect if the user later closes the app.
+        stopService(new Intent(this, SdkCleanupService.class));
         // SDK does not auto-reconnect. Replug the cable and tap Connect.
         setStatus("Disconnected — replug cable and tap Connect");
         tvDeviceInfo.setText("");
@@ -321,6 +359,11 @@ public class MainActivity extends AppCompatActivity implements SdkListener {
     public void onError(String error) {
         Toast.makeText(this, "SDK Error: " + error, Toast.LENGTH_SHORT).show();
         setStatus("Error: " + error);
+        // Restore interactive button states so the user can retry.
+        // We don't know which command failed, so re-enable both start and pause;
+        // the actual enabled state will be corrected by the next onCommandAcknowledged.
+        btnPause.setEnabled(true);
+        btnStartScan.setEnabled(true);
     }
 
     // =========================================================================

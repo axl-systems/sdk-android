@@ -36,6 +36,16 @@
                 android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
                 android:resource="@xml/device_filter" />
         </activity>
+
+        <!-- Sends disconnect_sync to the firmware when the user swipes the app
+             from the recents screen. stopWithTask="false" keeps the service alive
+             long enough for onTaskRemoved() to fire instead of being killed with
+             the task. -->
+        <service
+            android:name=".SdkCleanupService"
+            android:exported="false"
+            android:stopWithTask="false" />
+
     </application>
 
 </manifest>
