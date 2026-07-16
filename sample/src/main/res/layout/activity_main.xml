@@ -11,7 +11,15 @@
         android:layout_height="wrap_content"
         android:text="Status: Not connected"
         android:textSize="16sp"
-        android:paddingBottom="4dp" />
+        android:paddingBottom="2dp" />
+
+    <TextView
+        android:id="@+id/tvModuleTemp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="14sp"
+        android:paddingBottom="2dp"
+        android:visibility="gone" />
 
     <TextView
         android:id="@+id/tvDeviceInfo"

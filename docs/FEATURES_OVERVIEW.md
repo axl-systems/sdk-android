@@ -1,6 +1,6 @@
 # axl SDK — Features Overview
 
-**Version 26.2.7**  
+**Version 26.2.8**  
 Android SDK for AXL Hardware Device integration over USB and Bluetooth LE
 
 ---

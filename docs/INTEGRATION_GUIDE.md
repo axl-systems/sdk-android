@@ -1,6 +1,6 @@
 ﻿# AXL SDK - POS Integration Guide
 
-SDK version: **26.2.7**
+SDK version: **26.2.8**
 
 ---
 
@@ -148,23 +148,20 @@ sdk.initialize(context, config)
 sdk.connect()
 ```
 
-On call this:
-1. Opens the USB serial transport
-2. Performs a `connection_sync` handshake (two attempts, 5 s each; 3 s gap between attempts)
-3. Fires `onConnected()` on success, or `onError()` on timeout/failure
+Internally this:
+1. Opens the USB serial transport and asserts DTR (3 s settle)
+2. Sends `{"type":"SYS","cmd":"connection_sync"}` wrapped in a PacketFramer frame
+3. Waits for `ack_connection_sync` (device identity: `build_version`, `sku`, `device_type`, `usb`)
+4. Immediately fetches device configuration via a separate `device_config` command
+5. Fires `onConnected()` on success, or `onError()` on failure
 
-> **Android 12–14 note:** The CDC ACM USB host driver on these versions can deliver `ack_connection_sync` in 1-byte fragments, taking up to 4–5 s to reassemble. The SDK's 5 s handshake timeout and automatic retry handle this transparently — no app-side change is needed.
+> **POS cold-boot:** POS's USB controller cuts VBUS when the serial port is closed, cold-booting the STM32 firmware (19–24 s to read config from flash). `connect()` transparently retries `connection_sync` up to **12 times** covering ~30 s, so the user never needs to unplug and replug the cable.
 
-> **Zombie scan note:** If the previous session ended without a clean disconnect (app killed, process crash), the firmware continues scanning. On the next fresh open the SDK automatically:
-> 1. Sends `read_stop` (2 attempts, 400 ms gap) to drain the ongoing scan burst
-> 2. Waits 300 ms for any remaining queued firmware responses (e.g. stale antenna/network config replies, health alerts from the prior session) to arrive
-> 3. Flushes the receive buffer entirely before sending `connection_sync`
->
-> Without the flush, stale config responses queued from the previous session arrive fragmented alongside scan data and block the receive pipeline — `ack_connection_sync` cannot be dispatched until the stale-discard timer fires (500 ms), which is too late. This guard runs on fresh opens only; normal reconnects (port reuse after clean disconnect) are unaffected and incur no overhead.
+> **ack_connection_sync change (SDK 26.2.9+):** The handshake response no longer includes `config_data`. Device configuration is now fetched automatically via a separate `device_config` / `ack_device_config` exchange immediately after the handshake. `onDeviceConfigLoaded()` still fires after `onConnected()` — the timing is unchanged from the app's perspective.
 
-After `onConnected()` the SDK also fires:
-- `onDeviceIdentified(DeviceInfo)` - device name, SKU, type
-- `onDeviceConfigLoaded(JSONObject)` - device's current hardware configuration
+After `onConnected()` the SDK also fires, in order:
+- `onDeviceIdentified(DeviceInfo)` — device name, SKU, type, firmware build
+- `onDeviceConfigLoaded(JSONObject)` — device's current hardware configuration (from the auto-fetched `device_config`)
 
 ```kotlin
 override fun onConnected() {
@@ -375,7 +372,12 @@ All methods except `onConnected`, `onDisconnected`, `onCommandAcknowledged`, `on
 
 ## 6. Device Config Loaded on Connect
 
-On every successful connection the SDK fires `onDeviceConfigLoaded(JSONObject)` immediately after `onConnected()` with the device's current hardware configuration — before the user opens any Settings dialog.
+On every successful connection the SDK fires `onDeviceConfigLoaded(JSONObject)` shortly after `onConnected()`. The config is fetched via an automatic `device_config` / `ack_device_config` exchange that follows the `connection_sync` handshake — it is no longer bundled inside `ack_connection_sync` . Use this to pre-populate your Settings dialog so the operator always sees the actual device state.
+
+You can also fetch fresh config at any time with:
+```kotlin
+sdk.getDeviceConfig()   // → fires onDeviceConfigLoaded(JSONObject)
+```
 
 Example config JSON:
 ```json
@@ -587,6 +589,22 @@ override fun onDisconnected() {
 
 > **Why the `SdkCleanupService` on top of `onStop()`?**
 > On some OEM devices `onStop()` does not receive `isFinishing=true` on task removal. `SdkCleanupService.onTaskRemoved()` provides a second guarantee via a path that is independent of Activity lifecycle.
+
+### releasePort()
+
+Call `sdk.releasePort()` after `disconnectBlocking()` in `onStop()`:
+
+```kotlin
+override fun onStop() {
+    super.onStop()
+    if (isFinishing) {
+        sdk.takeIf { it.isConnected }?.disconnectBlocking()
+        sdk.releasePort()
+    }
+}
+```
+
+The SDK's keep-alive optimisation intentionally leaves the USB port open between same-session reconnects (avoids a 3 s DTR settle penalty on each reconnect). Without an explicit `releasePort()` call when the app closes, a second app opening afterward will race against the lingering `UsbDeviceConnection` and get a `COMMAND_TIMEOUT` on `connection_sync`. `releasePort()` is a no-op for BLE/WiFi transports.
 
 ### Switching transport at runtime
 

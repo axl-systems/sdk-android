@@ -1,9 +1,13 @@
 package com.axlsystem.axlsdk.sample;
 
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbManager;
 import android.os.Bundle;
+import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -40,7 +44,23 @@ public class MainActivity extends AppCompatActivity implements SdkListener {
     private Sdk sdk;
     private final List<String> scannedEpcs = new ArrayList<>();
 
+    // Detects physical USB disconnect (PAX L1400 cuts VBUS on port close → device disappears
+    // and re-enumerates). While the device is gone we keep the Connect button disabled so the
+    // user can't trigger "Failed to open USB device" errors. Re-enabled in handleUsbAttachIntent()
+    // when the device reattaches and onNewIntent() delivers ACTION_USB_DEVICE_ATTACHED.
+    private final BroadcastReceiver usbDetachReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (!UsbManager.ACTION_USB_DEVICE_DETACHED.equals(intent.getAction())) return;
+            if (sdk != null && sdk.isConnected()) return; // SDK-level disconnect handles this
+            // Physical detach while SDK is idle — device will re-enumerate; wait for reattach.
+            btnConnect.setEnabled(false);
+            setStatus("USB disconnected — waiting for device...");
+        }
+    };
+
     private TextView tvStatus;
+    private TextView tvModuleTemp;
     private TextView tvDeviceInfo;
     private TextView tvEpcCount;
     private TextView tvEpcList;
@@ -57,6 +77,7 @@ public class MainActivity extends AppCompatActivity implements SdkListener {
         setContentView(R.layout.activity_main);
 
         tvStatus     = findViewById(R.id.tvStatus);
+        tvModuleTemp = findViewById(R.id.tvModuleTemp);
         tvDeviceInfo = findViewById(R.id.tvDeviceInfo);
         tvEpcCount   = findViewById(R.id.tvEpcCount);
         tvEpcList    = findViewById(R.id.tvEpcList);
@@ -82,8 +103,14 @@ public class MainActivity extends AppCompatActivity implements SdkListener {
         // by the OS in response to the cable being plugged in).
         handleUsbAttachIntent(getIntent());
 
-        // connect() sends connection_sync handshake; onConnected() fires on success
-        btnConnect.setOnClickListener(v -> sdk.connect());
+        // connect() sends connection_sync handshake; onConnected() fires on success.
+        // Disable the button immediately to prevent double-tap during the ~30s cold-boot window.
+        // Re-enabled in onConnected() (success) or onError() (failure).
+        btnConnect.setOnClickListener(v -> {
+            btnConnect.setEnabled(false);
+            setStatus("Connecting...");
+            sdk.connect();
+        });
 
         btnStartScan.setOnClickListener(v -> {
             scannedEpcs.clear();
@@ -136,8 +163,28 @@ public class MainActivity extends AppCompatActivity implements SdkListener {
             device = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
         }
         if (device == null) return;
+        // Pin the new device path so findDevice() targets the correct port after re-enumeration.
         sdk.setTargetUsbDevice(device);
-        setStatus("USB device attached — tap Connect");
+        // Re-enable Connect — either first plug-in or device reattached after VBUS cut.
+        // If usbDetachReceiver disabled it while waiting for the device to re-enumerate,
+        // this is the signal that the device is back and ready to accept a connection.
+        if (!sdk.isConnected()) {
+            btnConnect.setEnabled(true);
+            setStatus("USB device attached — tap Connect");
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        IntentFilter filter = new IntentFilter(UsbManager.ACTION_USB_DEVICE_DETACHED);
+        registerReceiver(usbDetachReceiver, filter);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        unregisterReceiver(usbDetachReceiver);
     }
 
     @Override
@@ -150,8 +197,15 @@ public class MainActivity extends AppCompatActivity implements SdkListener {
         //
         // isFinishing() is false when the user presses Home (app just backgrounded),
         // so this does NOT interrupt an active scanning session on a normal background.
-        if (isFinishing() && sdk != null && sdk.isConnected()) {
-            sdk.disconnectBlocking();
+        if (isFinishing() && sdk != null) {
+            if (sdk.isConnected()) {
+                sdk.disconnectBlocking();
+            }
+            // Close the USB port even if already disconnected. The SDK's keep-alive
+            // optimisation leaves the port open between same-app reconnects, but if
+            // another app (or a second install of this app) connects after this one
+            // closes, the lingering port causes a COMMAND_TIMEOUT on connection_sync.
+            sdk.releasePort();
         }
     }
 
@@ -196,15 +250,55 @@ public class MainActivity extends AppCompatActivity implements SdkListener {
 
     @Override
     public void onDeviceConfigLoaded(JSONObject config) {
-        // Fired after onConnected() with the device's current hardware configuration.
-        // Use this to pre-populate your Settings dialog without a separate fetch command.
-        String region = config.optString("region", "?");
+        // Fired when sdk.getDeviceConfig() response arrives.
+        // Call sdk.getDeviceConfig() from your Settings gear icon tap handler
+        // to fetch live device values and pre-populate the Settings dialog.
+        //
+        // Typical fields in config_data:
+        //   region          — "ID", "US", etc.
+        //   protocol        — "GEN2"
+        //   hop_time        — 200 (ms)
+        //   read_on_frequency  / read_off_frequency — 500
+        //   hop_frequency   — [903250] (raw kHz; SDK converts to channel index for AXL_FLAT)
+        //   antenna.count   — 4
+        //   antenna.items   — [{id, active, read_power, write_power}, ...]
+        //   network_settings.lan   — false
+        //   network_settings.wifi  — {ssid, security, status, password}
+        String region   = config.optString("region", "?");
+        String protocol = config.optString("protocol", "?");
+
+        // Antenna summary
+        org.json.JSONObject antennaBlock = config.optJSONObject("antenna");
+        int antennaCount = antennaBlock != null ? antennaBlock.optInt("count", 0) : 0;
+        int activeCount  = 0;
+        if (antennaBlock != null) {
+            org.json.JSONArray items = antennaBlock.optJSONArray("items");
+            if (items != null) {
+                for (int i = 0; i < items.length(); i++) {
+                    if (items.optJSONObject(i) != null
+                            && items.optJSONObject(i).optBoolean("active", false)) {
+                        activeCount++;
+                    }
+                }
+            }
+        }
+
+        // Network summary
         JSONObject network = config.optJSONObject("network_settings");
-        boolean wifiOn = network != null
-                && !network.optBoolean("lan", true)
-                && network.optJSONObject("wifi") != null
-                && network.optJSONObject("wifi").optBoolean("status", false);
-        setStatus("Connected — region=" + region + "  network=" + (wifiOn ? "WiFi" : "LAN"));
+        String networkStr = "LAN";
+        if (network != null && !network.optBoolean("lan", true)) {
+            JSONObject wifi = network.optJSONObject("wifi");
+            if (wifi != null && wifi.optBoolean("status", false)) {
+                networkStr = "WiFi (" + wifi.optString("ssid", "?") + ")";
+            }
+        }
+
+        setStatus("Connected — region=" + region + "  proto=" + protocol
+                + "  antennas=" + activeCount + "/" + antennaCount
+                + "  network=" + networkStr);
+
+        // Pre-populate your Settings dialog fields here using the values above.
+        // The dialog can be opened any time after this point and will show live device values.
     }
 
     @Override
@@ -212,10 +306,15 @@ public class MainActivity extends AppCompatActivity implements SdkListener {
         // Disarm the cleanup service — clean disconnect already happened, no need for
         // onTaskRemoved() to fire a second disconnect if the user later closes the app.
         stopService(new Intent(this, SdkCleanupService.class));
-        // SDK does not auto-reconnect. Replug the cable and tap Connect.
-        setStatus("Disconnected — replug cable and tap Connect");
         tvDeviceInfo.setText("");
+        tvModuleTemp.setVisibility(View.GONE);
         setButtonStates(false);
+        // On PAX L1400, closing the port cuts VBUS — the device physically disconnects and
+        // cold-boots (19-24 s). If the SDK kept the port alive (no scan this session),
+        // no VBUS cut occurs and the user can tap Connect immediately. If the port was
+        // closed (scan session), usbDetachReceiver will detect the physical detach, disable
+        // Connect, and handleUsbAttachIntent() re-enables it once the device re-enumerates.
+        setStatus("Disconnected — tap Connect to reconnect");
     }
 
     // ── USB lock — BLE config-only mode ──────────────────────────────────────
@@ -258,6 +357,7 @@ public class MainActivity extends AppCompatActivity implements SdkListener {
                 break;
             case "read_stop":
                 setStatus("Stopped — " + scannedEpcs.size() + " item(s)");
+                tvModuleTemp.setVisibility(View.GONE);
                 btnStartScan.setEnabled(true);
                 btnPause.setEnabled(false);
                 btnStop.setEnabled(false);
@@ -279,7 +379,9 @@ public class MainActivity extends AppCompatActivity implements SdkListener {
     @Override
     public void onModuleTemperatureReceived(int tempCelsius) {
         // Optional — only fires on new firmware that reports module_temp in tag_detected.
-        setStatus("Scanning — Module temp: " + tempCelsius + "°C");
+        // Shown only while the reader is active; hidden on read_stop and disconnect.
+        tvModuleTemp.setVisibility(View.VISIBLE);
+        tvModuleTemp.setText("🌡 RFID Temp: " + tempCelsius + "°C");
     }
 
     @Override
@@ -359,9 +461,10 @@ public class MainActivity extends AppCompatActivity implements SdkListener {
     public void onError(String error) {
         Toast.makeText(this, "SDK Error: " + error, Toast.LENGTH_SHORT).show();
         setStatus("Error: " + error);
-        // Restore interactive button states so the user can retry.
-        // We don't know which command failed, so re-enable both start and pause;
-        // the actual enabled state will be corrected by the next onCommandAcknowledged.
+        // Re-enable Connect in case this was a connect() failure (btnConnect was disabled
+        // on tap and onConnected() never fired to call setButtonStates(true)).
+        // For mid-session errors, also restore scan/pause so the user can retry those.
+        btnConnect.setEnabled(true);
         btnPause.setEnabled(true);
         btnStartScan.setEnabled(true);
     }
