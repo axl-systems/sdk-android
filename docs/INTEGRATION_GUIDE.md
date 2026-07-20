@@ -675,6 +675,12 @@ override fun onResume() {
 
 The SDK has a built-in logging system with three channels. Understanding which channel is useful when lets you diagnose issues without physical access to the device.
 
+> **Imports** — `Logger` is an ambiguous name (Android Studio will also suggest `java.util.logging.Logger`). Always use the SDK's class explicitly:
+> ```kotlin
+> import com.axlsystem.axlsdk.util.Logger
+> import com.axlsystem.axlsdk.util.LogLevel   // needed for LogLevel.WARN in Pattern 2
+> ```
+
 ### How SDK logs work
 
 | Channel | What it does | Available in production? |
