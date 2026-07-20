@@ -20,7 +20,8 @@ SDK version: **26.2.8**
 12. [SDK Modes](#12-sdk-modes)
 13. [Error Codes](#13-error-codes)
 14. [USB Auto-Launch](#14-usb-auto-launch)
-15. [Settings Apply Rules](#15-settings-apply-rules)
+15. [Production Diagnostics](#15-production-diagnostics)
+16. [Settings Apply Rules](#16-settings-apply-rules)
 
 ---
 
@@ -509,8 +510,9 @@ When `lan = true` â†’ device uses LAN; WiFi is disabled.
 ## 10. Health & Status
 
 ```kotlin
-sdk.getHealthInfo()       // â†’ onHealthInfoReceived(JSONObject)
-sdk.getReadingStatus()    // â†’ onReaderStatusReceived(Boolean)
+sdk.getHealthInfo()       // → onHealthInfoReceived(JSONObject)
+sdk.getReadingStatus()    // → onReaderStatusReceived(Boolean)
+sdk.getDeviceConfig()     // → onDeviceConfigLoaded(JSONObject)  — fetch live device config on demand
 ```
 
 `onHealthInfoReceived` delivers:
@@ -669,7 +671,99 @@ override fun onResume() {
 
 ---
 
-## 15. Settings Apply Rules
+## 15. Production Diagnostics
+
+The SDK has a built-in logging system with three channels. Understanding which channel is useful when lets you diagnose issues without physical access to the device.
+
+### How SDK logs work
+
+| Channel | What it does | Available in production? |
+|---|---|---|
+| **Logcat** (`adb logcat`) | All SDK logs tagged `Sdk/<Component>` | No — requires USB + ADB |
+| **In-memory ring buffer** | Last 200 log entries, survives while process is alive | Yes |
+| **LogListener callback** | Real-time event hook — forward logs anywhere you want | Yes, if wired up |
+| **`onDeviceLogReceived`** | Firmware-side events (USB RX, RFID batch, ALERT, ERROR) | Yes, if wired up |
+
+By default, only `INFO`, `WARN`, and `ERROR` entries are captured. `DEBUG` and `VERBOSE` (including raw JSON frames) are suppressed unless debug mode is enabled.
+
+### Pattern 1 — Dump on error (minimal effort)
+
+Wire this up in production and you automatically capture the last 200 SDK events leading up to any failure:
+
+```kotlin
+override fun onError(errorMessage: String) {
+    val report = Logger.getDiagnosticReport()
+    // Write to a file, upload to your support server, or send via email
+    writeToSupportFile(report)
+}
+```
+
+`getDiagnosticReport()` returns a formatted, human-readable string with timestamps, thread names, severity levels, and full exception stack traces. No tooling needed — paste it into a support ticket.
+
+### Pattern 2 — Forward WARN/ERROR to a file (recommended for production)
+
+```kotlin
+// In Application.onCreate() or Activity.onCreate(), before sdk.connect()
+Logger.setLogListener { entry ->
+    if (entry.level.priority >= LogLevel.WARN.priority) {
+        appendToSupportLog(entry.toString())   // your own file-write helper
+    }
+}
+
+// In Activity.onDestroy()
+Logger.clearLogListener()
+```
+
+This writes only warnings and errors continuously, keeping the file small. When a store calls support, they use a "Send Logs" button or ADB pull to retrieve the file.
+
+### Pattern 3 — Full verbose logging during a support session
+
+If a store is having intermittent issues and you need deep visibility remotely:
+
+```kotlin
+Logger.setDebugEnabled(true)   // enables VERBOSE + DEBUG + raw JSON frames
+```
+
+Toggle this via a hidden settings flag, a remote config value, or a support-mode screen. Disable it after the session — verbose logging generates significant output.
+
+### Device-side events via `onDeviceLogReceived`
+
+The STM32 firmware pushes its own log events upstream. These are separate from SDK-internal logs and cover things the SDK itself cannot see (USB receive chunks, firmware alerts, RFID batch summaries):
+
+```kotlin
+override fun onDeviceLogReceived(level: String, message: String, timestamp: String) {
+    // level: "USB_RX", "RFID", "ALERT", "ERROR"
+    appendToSupportLog("DEVICE [$level] $message")
+}
+```
+
+### Summary — what to ship in a production integration
+
+```kotlin
+// 1. Dump on any SDK error
+override fun onError(errorMessage: String) {
+    val report = Logger.getDiagnosticReport()
+    writeToSupportFile(report)
+}
+
+// 2. Forward warnings to a rolling log file
+Logger.setLogListener { entry ->
+    if (entry.level.priority >= LogLevel.WARN.priority) {
+        appendToSupportLog(entry.toString())
+    }
+}
+
+// 3. Capture device-side events
+override fun onDeviceLogReceived(level: String, message: String, timestamp: String) {
+    appendToSupportLog("DEVICE [$level] $message")
+}
+```
+
+With these three in place, any field failure produces a file you can retrieve without physical access to the device.
+
+---
+
+## 16. Settings Apply Rules
 
 | Setting | How to apply | Transport |
 |---|---|---|
