@@ -1,6 +1,6 @@
 ﻿# AXL SDK - POS Integration Guide
 
-SDK version: **26.2.8**
+SDK version: **26.2.9**
 
 ---
 

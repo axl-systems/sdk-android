@@ -2,7 +2,7 @@
 
 Android SDK for integrating AXL Hardware devices over USB or Bluetooth.
 
-**Version:** 26.2.8 &nbsp;·&nbsp; **Min SDK:** Android 5.0 (API 21) &nbsp;·&nbsp; **Language:** Java 11 &nbsp;·&nbsp; **License:** Apache 2.0
+**Version:** 26.2.9 &nbsp;·&nbsp; **Min SDK:** Android 5.0 (API 21) &nbsp;·&nbsp; **Language:** Java 11 &nbsp;·&nbsp; **License:** Apache 2.0
 
 ---
 
@@ -18,7 +18,7 @@ axl SDK provides a clean Android API to communicate with AXL Hardware device ove
 
 - Android 5.0+ (API 21)
 - USB OTG support on the Android device
-- AXL hardware (AXL FLAT)
+- AXL hardware (AXL FLAT, AXL ECU)
 - Bluetooth 4.0+ for BLE connectivity (optional)
 
 ---

@@ -1,7 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <usb-device
-        vendor-id="1155"
-        product-id="22336" />
-    <!-- 1155 = 0x0483 (STMicroelectronics), 22336 = 0x5740 (STM32 CDC) -->
+    <!-- FTDI FT232R  VID=0x0403  PID=0x6001 -->
+    <usb-device vendor-id="1027"  product-id="24577" />
+    <!-- FTDI FT2232H VID=0x0403  PID=0x6010 -->
+    <usb-device vendor-id="1027"  product-id="24592" />
+    <!-- FTDI FT4232H VID=0x0403  PID=0x6011 -->
+    <usb-device vendor-id="1027"  product-id="24593" />
+    <!-- STM32 USB CDC VID=0x0483  PID=0x5740 -->
+    <usb-device vendor-id="1155"  product-id="22336" />
+    <!-- STM32 USB CDC VID=0x0483  PID=0x5741 (alt PID) -->
+    <usb-device vendor-id="1155"  product-id="22337" />
+    <!-- Silicon Labs CP210x VID=0x10C4  PID=0xEA60 -->
+    <usb-device vendor-id="4292"  product-id="60000" />
+    <!-- Prolific PL2303 VID=0x067B  PID=0x2303 -->
+    <usb-device vendor-id="1659"  product-id="8963"  />
+    <!-- CH340 / CH341  VID=0x1A86  PID=0x7523 -->
+    <usb-device vendor-id="6790"  product-id="29987" />
+    <!-- CH9102 (CH343) VID=0x1A86  PID=0x55D4 -->
+    <usb-device vendor-id="6790"  product-id="21972" />
+    <!-- AXLSYSTEMS AXLECU VID=0x061F  PID=0x3D38 -->
+    <usb-device vendor-id="1567"  product-id="15672" />
 </resources>

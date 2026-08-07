@@ -6,6 +6,16 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [26.2.9] — 2026-08-07
+
+### Added
+- **AXL ECU USB device support** — the SDK now recognises the AXLSYSTEMS AXLECU hardware (VID `0x061F` / PID `0x3D38`). A custom `buildProber()` method extends the default usb-serial-for-android probe table with the AXLECU VID/PID mapped to `CdcAcmSerialDriver`. `KNOWN_DEVICES` updated so the device appears as `"AXLSYSTEMS AXLECU"` in connection logs. The SDK AAR's `device_filter.xml` now includes the AXLECU entry so Android delivers USB attach intents to the app. Previously the AXLECU's custom vendor ID was unknown to both the default prober and the OS intent filter, causing `findDevice()` to return null and the connection to fail immediately with `"No supported USB serial device found"`.
+
+### Fixed
+- **Stale port causes connection failure after USB cable replug (AXL ECU and AXL FLAT, ~1–2 in 15 attempts)** — when the previous session had no scan activity, `disconnect()` kept the USB serial port alive (keep-alive optimisation). If the cable was then physically unplugged and replugged, the Android USB stack re-enumerated the device and invalidated the old port file descriptor. On the next `connect()`, the reuse path in `openDevice()` attempted to flush the stale port, caught an `IOException` (`USB get_status request failed`), logged it as non-fatal, and continued to start the read loop on the dead handle. The read loop hit 20 consecutive errors and declared disconnect — before `connection_sync` was ever sent — producing `[E001] DEVICE_NOT_CONNECTED`. Fixed: a flush `IOException` in the reuse path now calls `closePort()` and falls through to the fresh-open path (full port open + DTR + `PORT_SETTLE_MS` settle), identical to a first-ever connect. Affects all device types; failure rate drops to zero.
+
+---
+
 ## [26.2.8] — 2026-07-16
 
 ### Added
